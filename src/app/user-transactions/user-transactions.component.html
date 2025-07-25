@@ -1,0 +1,28 @@
+<div class="container mt-4">
+  <h2>Mes Transactions</h2>
+
+  <table class="table table-bordered table-hover mt-3" *ngIf="transactions.length > 0; else noData">
+    <thead class="table-light">
+      <tr>
+        <th>Référence</th>
+        <th>Type</th>
+        <th>Statut</th>
+        <th>Montant</th>
+        <th>Date</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let tx of transactions">
+        <td>{{ tx.reference }}</td>
+        <td>{{ tx.type }}</td>
+        <td>{{ tx.statut }}</td>
+        <td>{{ tx.montant }} MAD</td>
+        <td>{{ tx.dateTransaction | date: 'dd/MM/yyyy' }}</td>
+      </tr>
+    </tbody>
+  </table>
+
+  <ng-template #noData>
+    <div class="alert alert-info">Aucune transaction disponible.</div>
+  </ng-template>
+</div>

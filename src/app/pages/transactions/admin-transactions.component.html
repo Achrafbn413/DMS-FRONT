@@ -1,0 +1,28 @@
+<div class="transactions">
+    <h2>📄 Liste des Transactions</h2>
+    <table>
+      <thead>
+        <tr>
+          <th>Référence</th>
+          <th>Montant</th>
+          <th>Type</th>
+          <th>Statut</th>
+          <th>Date</th>
+          <th>Banque émettrice</th>
+          <th>Banque acquéreuse</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let tx of transactions">
+          <td>{{ tx.reference }}</td>
+          <td>{{ tx.montant }}</td>
+          <td>{{ tx.type }}</td>
+          <td>{{ tx.statut }}</td>
+          <td>{{ tx.dateTransaction }}</td>
+          <td>{{ tx.banqueEmettrice?.nom }}</td>
+          <td>{{ tx.banqueAcquereuse?.nom }}</td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+cl  

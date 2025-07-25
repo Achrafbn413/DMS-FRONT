@@ -1,0 +1,37 @@
+<h2>Créer une nouvelle institution</h2>
+
+<form #form="ngForm" (ngSubmit)="createInstitution()">
+  <input type="text" name="nom" [(ngModel)]="newInstitution.nom" placeholder="Nom" required />
+
+  <select name="type" [(ngModel)]="newInstitution.type">
+    <option *ngFor="let entry of typeEntries" [ngValue]="entry.value">
+      {{ entry.key.replace('_', ' ') }}
+    </option>
+  </select>
+
+  <button type="submit" [disabled]="!form.valid">Créer</button>
+</form>
+
+<hr />
+
+<h3>Liste des institutions</h3>
+<table>
+  <thead>
+    <tr>
+      <th>Nom</th>
+      <th>Type</th>
+      <th>Actions</th>
+    </tr>
+  </thead>
+  <tbody>
+    <tr *ngFor="let inst of institutions">
+      <td>{{ inst.nom }}</td>
+      <td>{{ getTypeLabel(inst.type) }}</td>
+      <td>
+        <button (click)="toggleInstitution(inst)" [ngClass]="{'btn-active': inst.enabled, 'btn-inactive': !inst.enabled}">
+          {{ inst.enabled ? 'Désactiver' : 'Activer' }}
+        </button>
+      </td>
+    </tr>
+  </tbody>
+</table>

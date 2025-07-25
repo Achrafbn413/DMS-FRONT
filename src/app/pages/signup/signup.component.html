@@ -1,0 +1,149 @@
+<div class="signup-page">
+  <!-- Topbar -->
+  <div class="topbar">
+    <div class="logo-section">
+      <img src="/assets/images/DMSLOGO.png" alt="Logo" class="logo-img">
+      <div class="logo-text"></div>
+    </div>
+    <div class="topbar-buttons">
+      <a href="/login" class="btn btn-secondary">Se connecter</a>
+      <a href="/about" class="btn btn-primary">À propos</a>
+    </div>
+  </div>
+
+  <!-- Particles Background -->
+  <div class="particles">
+    <div class="particle" style="left: 10%; top: 20%; width: 8px; height: 8px; animation-delay: 0s;"></div>
+    <div class="particle" style="left: 80%; top: 10%; width: 6px; height: 6px; animation-delay: 2s;"></div>
+    <div class="particle" style="left: 60%; top: 70%; width: 10px; height: 10px; animation-delay: 4s;"></div>
+    <div class="particle" style="left: 20%; top: 80%; width: 7px; height: 7px; animation-delay: 6s;"></div>
+    <div class="particle" style="left: 90%; top: 50%; width: 9px; height: 9px; animation-delay: 8s;"></div>
+  </div>
+
+  <!-- Main Content -->
+  <div class="signup-container">
+    <div class="signup-content">
+      <!-- Header -->
+      <div class="signup-header">
+        <div class="logo">
+          <div class="logo-icon">🎓</div>
+        </div>
+        <h1>Créer un compte</h1>
+        <p class="subtitle">Rejoignez notre plateforme éducative</p>
+      </div>
+
+      <!-- Error Message -->
+      <div class="error-message" *ngIf="errorMessage">
+        <div class="error-content">
+          <span class="error-icon">⚠️</span>
+          <span>{{ errorMessage }}</span>
+        </div>
+      </div>
+
+      <!-- Registration Form -->
+      <form class="signup-form" (ngSubmit)="onSignup()">
+        <!-- Nom -->
+        <div class="form-group">
+          <label class="form-label" for="nom">Nom complet</label>
+          <div class="input-container">
+            <span class="input-icon">👤</span>
+            <input
+              type="text"
+              id="nom"
+              class="form-input"
+              [(ngModel)]="nom"
+              name="nom"
+              placeholder="Entrez votre nom complet"
+              required
+            >
+          </div>
+        </div>
+
+        <!-- Email -->
+        <div class="form-group">
+          <label class="form-label" for="email">Adresse email</label>
+          <div class="input-container">
+            <span class="input-icon">✉️</span>
+            <input
+              type="email"
+              id="email"
+              class="form-input"
+              [(ngModel)]="email"
+              name="email"
+              placeholder="votre@email.com"
+              required
+            >
+          </div>
+        </div>
+
+        <!-- Password -->
+        <div class="form-group">
+          <label class="form-label" for="password">Mot de passe</label>
+          <div class="input-container">
+            <span class="input-icon">🔒</span>
+            <input
+              type="password"
+              id="password"
+              class="form-input password-input"
+              [(ngModel)]="password"
+              name="password"
+              placeholder="Créez un mot de passe sécurisé"
+              required
+            >
+            <button type="button" class="password-toggle">
+              <span class="button-icon">👁️</span>
+            </button>
+          </div>
+        </div>
+
+       
+
+        <!-- Institution ID (caché mais requis) -->
+        <input type="hidden" [(ngModel)]="institutionId" name="institutionId">
+
+        <!-- Terms and Conditions -->
+        <div class="form-options">
+          <div class="checkbox-container">
+            <input type="checkbox" id="terms" class="checkbox" required>
+            <label for="terms">J'accepte les <a href="/terms" class="terms-link">conditions d'utilisation</a></label>
+          </div>
+        </div>
+
+        <!-- Submit Button -->
+        <button type="submit" class="signup-button" [disabled]="loading">
+          <div class="button-content" *ngIf="!loading">
+            <span class="button-icon">🚀</span>
+            <span>Créer mon compte</span>
+          </div>
+          <div class="loading-content" *ngIf="loading">
+            <div class="spinner"></div>
+            <span>Création en cours...</span>
+          </div>
+        </button>
+      </form>
+
+      <!-- Footer -->
+      <div class="signup-footer">
+        <p>
+          Vous avez déjà un compte ? 
+          <a href="/login" class="login-link">Se connecter</a>
+        </p>
+
+        <!-- Social Registration -->
+        <div class="social-signup">
+          <p>Ou s'inscrire avec</p>
+          <div class="social-buttons">
+            <button class="social-btn">
+              <span class="social-icon">🔗</span>
+              <span>Google</span>
+            </button>
+            <button class="social-btn">
+              <span class="social-icon">📘</span>
+              <span>Facebook</span>
+            </button>
+          </div>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>

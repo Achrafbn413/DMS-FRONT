@@ -1,0 +1,283 @@
+<div class="admin-users-dashboard">
+  
+  <!-- ========== HEADER ========== -->
+  <div class="page-header">
+    <div class="header-content">
+      <h1 class="page-title">
+        <span class="icon">👥</span>
+        <span>Gestion des Utilisateurs</span>
+      </h1>
+      <p class="page-subtitle">Créez, modifiez et gérez les comptes utilisateurs du système</p>
+    </div>
+    
+    <div class="header-actions">
+      <button class="btn btn-primary" (click)="showForm()" *ngIf="!isFormVisible">
+        <span>➕</span>
+        Nouvel utilisateur
+      </button>
+      <button class="btn btn-secondary" (click)="refreshData()" [disabled]="isLoading">
+        <span class="refresh-icon" [class.spinning]="isLoading">🔄</span>
+        Actualiser
+      </button>
+    </div>
+  </div>
+
+  <!-- ========== MESSAGES ========== -->
+  <div class="messages" *ngIf="errorMessage || successMessage">
+    <div class="alert alert-error" *ngIf="errorMessage">
+      <span class="alert-icon">❌</span>
+      {{ errorMessage }}
+    </div>
+    <div class="alert alert-success" *ngIf="successMessage">
+      <span class="alert-icon">✅</span>
+      {{ successMessage }}
+    </div>
+  </div>
+
+  <!-- ========== STATS CARDS ========== -->
+  <div class="stats-grid">
+    <div class="stat-card primary">
+      <div class="stat-icon">👥</div>
+      <div class="stat-content">
+        <div class="stat-number">{{ totalUsers }}</div>
+        <div class="stat-label">Total Utilisateurs</div>
+      </div>
+    </div>
+    
+    <div class="stat-card success">
+      <div class="stat-icon">✅</div>
+      <div class="stat-content">
+        <div class="stat-number">{{ activeUsers }}</div>
+        <div class="stat-label">Utilisateurs Actifs</div>
+      </div>
+    </div>
+    
+    <div class="stat-card warning">
+      <div class="stat-icon">❌</div>
+      <div class="stat-content">
+        <div class="stat-number">{{ totalUsers - activeUsers }}</div>
+        <div class="stat-label">Utilisateurs Inactifs</div>
+      </div>
+    </div>
+    
+    <div class="stat-card info">
+      <div class="stat-icon">🏦</div>
+      <div class="stat-content">
+        <div class="stat-number">{{ institutions.length }}</div>
+        <div class="stat-label">Institutions</div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== MAIN CONTENT ========== -->
+  <div class="main-content">
+    
+    <!-- ========== FORM SECTION ========== -->
+    <div class="form-section" *ngIf="isFormVisible">
+      <div class="form-card">
+        <div class="form-header">
+          <h3>{{ isEditing ? '✏️ Modifier' : '➕ Créer' }} un utilisateur</h3>
+          <button class="btn-close" (click)="hideForm()">✖️</button>
+        </div>
+        
+        <form (ngSubmit)="saveUser()" #userForm="ngForm" class="user-form">
+          <div class="form-grid">
+            <div class="form-group">
+              <label for="nom">Nom complet *</label>
+              <input 
+                id="nom"
+                [(ngModel)]="selectedUser.nom" 
+                name="nom" 
+                placeholder="Entrez le nom complet" 
+                required 
+                class="form-input"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="email">Adresse email *</label>
+              <input 
+                id="email"
+                [(ngModel)]="selectedUser.email" 
+                name="email" 
+                placeholder="exemple@email.com" 
+                required 
+                type="email" 
+                class="form-input"
+              />
+            </div>
+
+            <div class="form-group">
+              <label for="role">Rôle *</label>
+              <select 
+                id="role"
+                [(ngModel)]="selectedUser.role" 
+                name="role" 
+                required 
+                class="form-select"
+              >
+                <option value="USER">👤 Utilisateur</option>
+                <option value="ADMIN">👑 Administrateur</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label for="institution">Institution</label>
+              <select 
+                id="institution"
+                [(ngModel)]="selectedUser.institution" 
+                name="institution" 
+                class="form-select"
+              >
+                <option [ngValue]="undefined">-- Aucune institution --</option>
+                <option *ngFor="let inst of institutions" [ngValue]="inst">
+                  🏦 {{ inst.nom }}
+                </option>
+              </select>
+            </div>
+          </div>
+
+          <div class="form-actions">
+            <button type="button" class="btn btn-secondary" (click)="hideForm()">
+              Annuler
+            </button>
+            <button type="submit" class="btn btn-primary" [disabled]="isLoading">
+              <span *ngIf="isLoading" class="spinner-sm"></span>
+              {{ isEditing ? '💾 Mettre à jour' : '➕ Créer' }}
+            </button>
+          </div>
+        </form>
+      </div>
+    </div>
+
+    <!-- ========== TABLE SECTION ========== -->
+    <div class="table-section">
+      <div class="table-card">
+        <div class="table-header">
+          <h3>📋 Liste des utilisateurs</h3>
+          <div class="search-box">
+            <input 
+              type="text" 
+              [(ngModel)]="searchTerm" 
+              name="search" 
+              placeholder="🔍 Rechercher par nom, email, rôle..." 
+              class="search-input"
+            />
+          </div>
+        </div>
+
+        <div class="table-container" *ngIf="!isLoading; else loadingTemplate">
+          <div *ngIf="utilisateursFiltres.length > 0; else emptyList">
+            <table class="users-table">
+              <thead>
+                <tr>
+                  <th>👤 Utilisateur</th>
+                  <th>📧 Email</th>
+                  <th>🔑 Rôle</th>
+                  <th>🏦 Institution</th>
+                  <th>📊 Statut</th>
+                  <th>⚡ Actions</th>
+                </tr>
+              </thead>
+              <tbody>
+                <tr *ngFor="let user of utilisateursFiltres" [class.inactive]="!user.enabled">
+                  <td>
+                    <div class="user-info">
+                      <span class="user-avatar">{{ user.nom.charAt(0).toUpperCase() }}</span>
+                      <span class="user-name">{{ user.nom }}</span>
+                    </div>
+                  </td>
+                  <td>
+                    <span class="email">{{ user.email }}</span>
+                  </td>
+                  <td>
+                    <span class="role-badge" [class]="user.role.toLowerCase()">
+                      {{ getRoleIcon(user.role) }} {{ getRoleText(user.role) }}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="institution">
+                      {{ user.institution?.nom || '—' }}
+                    </span>
+                  </td>
+                  <td>
+                    <span class="status-badge" [class.active]="user.enabled" [class.inactive]="!user.enabled">
+                      {{ getUserStatusIcon(user) }} {{ getUserStatusText(user) }}
+                    </span>
+                  </td>
+                  <td>
+                    <div class="action-buttons">
+                      <button 
+                        class="btn-action btn-edit" 
+                        (click)="editUser(user)"
+                        title="Modifier"
+                      >
+                        ✏️
+                      </button>
+                      <button 
+                        *ngIf="user.enabled" 
+                        class="btn-action btn-deactivate" 
+                        (click)="confirmDeactivate(user.id!)"
+                        title="Désactiver"
+                      >
+                        🚫
+                      </button>
+                      <button 
+                        *ngIf="!user.enabled" 
+                        class="btn-action btn-activate" 
+                        (click)="reactivateUser(user.id!)"
+                        title="Réactiver"
+                      >
+                        ✅
+                      </button>
+                    </div>
+                  </td>
+                </tr>
+              </tbody>
+            </table>
+          </div>
+
+          <ng-template #emptyList>
+            <div class="empty-state">
+              <div class="empty-icon">👥</div>
+              <h3>Aucun utilisateur trouvé</h3>
+              <p>{{ searchTerm ? 'Aucun résultat pour cette recherche' : 'Commencez par créer votre premier utilisateur' }}</p>
+              <button class="btn btn-primary" (click)="showForm()" *ngIf="!searchTerm">
+                ➕ Créer un utilisateur
+              </button>
+            </div>
+          </ng-template>
+        </div>
+
+        <ng-template #loadingTemplate>
+          <div class="loading-state">
+            <div class="spinner"></div>
+            <p>Chargement des utilisateurs...</p>
+          </div>
+        </ng-template>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== CONFIRM DIALOG ========== -->
+  <div class="modal-overlay" *ngIf="showConfirmDialog" (click)="closeConfirmDialog()">
+    <div class="confirm-dialog" (click)="$event.stopPropagation()">
+      <div class="dialog-header">
+        <h3>⚠️ Confirmer la désactivation</h3>
+      </div>
+      <div class="dialog-content">
+        <p>Êtes-vous sûr de vouloir désactiver cet utilisateur ?</p>
+        <p class="warning-text">Cette action peut être annulée ultérieurement.</p>
+      </div>
+      <div class="dialog-actions">
+        <button class="btn btn-secondary" (click)="closeConfirmDialog()">
+          Annuler
+        </button>
+        <button class="btn btn-danger" (click)="deactivateUser()">
+          🚫 Désactiver
+        </button>
+      </div>
+    </div>
+  </div>
+
+</div>

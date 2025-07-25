@@ -1,0 +1,131 @@
+<div class="admin-dashboard">
+  
+  <!-- ========== HEADER ========== -->
+  <div class="dashboard-header">
+    <div class="welcome-section">
+      <h1 class="dashboard-title">
+        <span class="icon">🏛️</span>
+        <span>Tableau de bord administrateur DMS</span>
+      </h1>
+      <p class="welcome-message">
+        {{ getUserGreeting() }}, {{ currentUser?.nom || 'Administrateur' }} ! 
+        Gérez votre système de monitoring des transactions.
+      </p>
+    </div>
+    
+    <button class="refresh-btn" (click)="refreshStats()" [disabled]="isLoading">
+      <span class="refresh-icon" [class.spinning]="isLoading">🔄</span>
+      Actualiser
+    </button>
+  </div>
+
+  <!-- ========== STATS SECTION ========== -->
+  <div class="stats-section">
+    <h2 class="section-title">📊 Vue d'ensemble</h2>
+    
+    <div class="stats-grid" *ngIf="!isLoading; else loadingStats">
+      <div class="stat-card primary">
+        <div class="stat-icon">👥</div>
+        <div class="stat-content">
+          <div class="stat-number">{{ stats.totalUsers }}</div>
+          <div class="stat-label">Utilisateurs</div>
+          <div class="stat-sublabel">{{ stats.activeUsers }} actifs</div>
+        </div>
+      </div>
+
+      <div class="stat-card success">
+        <div class="stat-icon">🏦</div>
+        <div class="stat-content">
+          <div class="stat-number">{{ stats.totalInstitutions }}</div>
+          <div class="stat-label">Institutions</div>
+          <div class="stat-sublabel">Banques & organismes</div>
+        </div>
+      </div>
+
+      <div class="stat-card warning">
+        <div class="stat-icon">💳</div>
+        <div class="stat-content">
+          <div class="stat-number">{{ stats.totalTransactions }}</div>
+          <div class="stat-label">Transactions</div>
+          <div class="stat-sublabel">Ce mois</div>
+        </div>
+      </div>
+
+      <div class="stat-card danger">
+        <div class="stat-icon">⚠️</div>
+        <div class="stat-content">
+          <div class="stat-number">{{ stats.totalLitiges }}</div>
+          <div class="stat-label">Litiges</div>
+          <div class="stat-sublabel">{{ stats.pendingLitiges }} en attente</div>
+        </div>
+      </div>
+    </div>
+
+    <ng-template #loadingStats>
+      <div class="loading-stats">
+        <div class="spinner"></div>
+        <p>Chargement des statistiques...</p>
+      </div>
+    </ng-template>
+  </div>
+
+  <!-- ========== MAIN CONTENT ========== -->
+  <div class="main-content">
+    
+    <!-- ========== QUICK ACTIONS ========== -->
+    <div class="quick-actions-section">
+      <h2 class="section-title">⚡ Actions rapides</h2>
+      
+      <div class="actions-grid">
+        <div *ngFor="let action of quickActions.slice(0, 6)" 
+             class="action-card" 
+             [routerLink]="action.route"
+             [style.--card-color]="action.color">
+          
+          <span class="action-icon">{{ action.icon }}</span>
+          
+          <div class="action-content">
+            <h3 class="action-title">{{ action.title }}</h3>
+            <p class="action-description">{{ action.description }}</p>
+          </div>
+          
+          <span class="action-count" *ngIf="action.count !== undefined">{{ action.count }}</span>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== RECENT ACTIVITIES ========== -->
+    <div class="recent-activities-section">
+      <h2 class="section-title">🕐 Activités récentes</h2>
+      
+      <div class="activities-list">
+        <div *ngFor="let activity of recentActivities" class="activity-item">
+          <div class="activity-icon">{{ activity.icon }}</div>
+          <div class="activity-content">
+            <p class="activity-message">{{ activity.message }}</p>
+            <span class="activity-time">Il y a {{ activity.time }}</span>
+          </div>
+        </div>
+        
+        <div class="view-all-activities">
+          <button routerLink="/admin/activities" class="view-all-btn">
+            Voir toutes les activités →
+          </button>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <!-- ========== FOOTER ACTIONS ========== -->
+  <div class="footer-actions">
+    <div class="emergency-actions">
+      <button class="emergency-btn backup">
+        💾 Sauvegarde d'urgence
+      </button>
+      <button class="emergency-btn maintenance">
+        🛠️ Mode maintenance
+      </button>
+    </div>
+  </div>
+  
+</div>

@@ -1,0 +1,21 @@
+<table>
+    <thead>
+      <tr>
+        <th>Date</th>
+        <th>Montant</th>
+        <th>Type</th>
+        <th>Statut</th>
+        <th>Référence</th>
+      </tr>
+    </thead>
+    <tbody>
+      <tr *ngFor="let t of transactions" [class.flagged]="isLitige(t)">
+        <td>{{ t.dateTransaction }}</td>
+        <td>{{ t.montant }}</td>
+        <td>{{ t.type }}</td>
+        <td>{{ t.statut }}</td>
+        <td>{{ t.reference }}</td>
+      </tr>
+    </tbody>
+  </table>
+  

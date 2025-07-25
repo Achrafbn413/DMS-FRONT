@@ -1,0 +1,863 @@
+<div class="dashboard-container">
+  <aside class="sidebar">
+    <img src="assets/images/profilpic.jpg" alt="Photo de profil" class="profile" />
+    <h1 class="brand">Dashboard Transactionnel</h1>
+    <p class="user-name">{{ nomEmploye }}</p>
+    <p class="department">{{ department }}</p>
+
+    <nav>
+      <a class="nav-item" (click)="refreshData()">🔄 Actualiser</a>
+      <a class="nav-item" (click)="toggleNotificationPanel()" [class.active]="showNotificationPanel">
+        🔔 Notifications 
+        <span class="badge" *ngIf="unreadNotifications.length > 0">
+          {{ unreadNotifications.length }}
+        </span>
+      </a>
+      <a class="nav-item" href="#">👤 Profil Employé</a>
+      <a class="nav-item" (click)="showBusinessRulesInfo()">ℹ️ Règles Métier</a>
+      <a class="nav-item" (click)="debugBanqueDeclarante()">🐛 Debug</a>
+    </nav>
+  </aside>
+
+  <!-- PANNEAU DE NOTIFICATIONS -->
+  <div class="notification-container">
+    <!-- Icône notification 🔔 avec compteur cliquable -->
+    <div class="notification-icon" (click)="toggleNotificationPanel()">
+      🔔 
+      <span *ngIf="unreadNotifications.length > 0" class="notification-badge">
+        +{{ unreadNotifications.length }}
+      </span>
+    </div>
+
+    <!-- Panneau de notifications -->
+    <div class="notification-panel" *ngIf="showNotificationPanel">
+      <div class="notification-header">
+        <h3>🔔 Notifications</h3>
+        <button class="close-btn" (click)="toggleNotificationPanel()">✕</button>
+      </div>
+      
+      <div class="notification-content">
+        <div *ngIf="unreadNotifications.length === 0" class="no-notifications">
+          ✅ Aucune nouvelle notification
+        </div>
+        
+        <div *ngFor="let notification of unreadNotifications" 
+             class="notification-item" 
+             (click)="goToTransaction(notification)">
+          
+          <div class="notification-icon-item">🚩</div>
+          <div class="notification-details">
+            <div class="notification-title">
+              Nouveau litige signalé
+            </div>
+            <div class="notification-info">
+              Transaction: {{ notification.transaction && notification.transaction.reference || 'N/A' }}
+            </div>
+            <div class="notification-meta">
+              Montant: {{ notification.transaction && formatCurrency(notification.transaction.montant) || '0,00 MAD' }}
+            </div>
+            <div class="notification-date">
+              {{ formatDate(notification.dateCreation) }}
+            </div>
+          </div>
+          <div class="notification-arrow">→</div>
+        </div>
+      </div>
+    </div>
+  </div>
+
+  <main class="content">
+    <!-- HEADER -->
+    <div class="header-section">
+      <div class="header-content">
+        <h2 class="welcome-text">👋 Bienvenue, {{ nomEmploye }}</h2>
+        <p class="institution-info">
+          <strong>Institution :</strong> {{ institution }} | 
+          <strong>Département :</strong> {{ department }}
+        </p>
+        <!-- ✅ NOUVEAU : Information sur les règles métier -->
+        <div class="business-rules-info" *ngIf="totalTransactions !== totalSignalableTransactions">
+          <small class="info-text">
+            ℹ️ Affichage conforme aux règles métier bancaires : 
+            {{ totalSignalableTransactions }} transactions signalables sur {{ totalTransactions }} totales
+          </small>
+        </div>
+      </div>
+      <img src="assets/images/logodms.jpg" alt="Logo" class="logo" />
+    </div>
+
+    <!-- ✅ STATS MISES À JOUR -->
+    <div class="stats-grid">
+      <div class="stat-card">
+        <div class="stat-icon">📄</div>
+        <div class="stat-content">
+          <div class="stat-value">{{ totalSignalableTransactions }}</div>
+          <div class="stat-label">Transactions Signalables</div>
+          <div class="stat-sublabel">{{ totalTransactions }} au total</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">💰</div>
+        <div class="stat-content">
+          <div class="stat-value">{{ totalAmount }}</div>
+          <div class="stat-label">Montant Total</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">📊</div>
+        <div class="stat-content">
+          <div class="stat-value">{{ averageAmount }}</div>
+          <div class="stat-label">Montant Moyen</div>
+        </div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-icon">🚩</div>
+        <div class="stat-content">
+          <div class="stat-value">{{ flaggedCount }}</div>
+          <div class="stat-label">Transactions Signalées</div>
+        </div>
+      </div>
+    </div>
+
+    <!-- FILTRES + IMPORT -->
+    <div class="actions">
+      <input type="text" 
+             [(ngModel)]="searchTerm" 
+             (ngModelChange)="filterTransactions()" 
+             placeholder="🔍 Rechercher par référence, type, montant..." />
+      
+      <select [(ngModel)]="statutFilter" (change)="filterTransactions()">
+        <option value="">Tous les statuts</option>
+        <option *ngFor="let s of uniqueStatuts" [value]="s">{{ s }}</option>
+      </select>
+      
+      <select [(ngModel)]="typeFilter" (change)="filterTransactions()">
+        <option value="">Tous les types</option>
+        <option *ngFor="let t of uniqueTypes" [value]="t">{{ t }}</option>
+      </select>
+      
+      <button (click)="exportToCSV()" class="btn-download">📥 Télécharger CSV</button>
+      <button (click)="clearFilters()" class="btn-clear">🗑️ Effacer filtres</button>
+
+      <label class="btn-download">
+        📤 Importer fichier CMI
+        <input type="file" (change)="onFileSelected($event)" hidden accept=".csv" />
+      </label>
+      
+      <span *ngIf="selectedFileName" class="selected-file">📂 {{ selectedFileName }}</span>
+      <span *ngIf="isUploadingFile" class="uploading">⏳ Upload en cours...</span>
+    </div>
+
+    <!-- LOADER TRANSACTIONS -->
+    <div *ngIf="isLoadingTransactions" class="loader">
+      <div class="spinner"></div>
+      <p>Chargement des transactions...</p>
+    </div>
+
+    <!-- ✅ SECTION D'INFORMATION RÈGLES MÉTIER -->
+    <div class="business-rules-banner" *ngIf="!isLoadingTransactions && totalTransactions > totalSignalableTransactions">
+      <div class="banner-content">
+        <div class="banner-icon">🏦</div>
+        <div class="banner-text">
+          <strong>Règles métier bancaires appliquées</strong>
+          <p>Seules les transactions où votre banque est émettrice ou acquéreuse sont affichées.</p>
+          <small>{{ totalTransactions - totalSignalableTransactions }} transactions d'autres banques masquées</small>
+        </div>
+        <button class="banner-btn" (click)="showBusinessRulesInfo()">
+          ℹ️ En savoir plus
+        </button>
+      </div>
+    </div>
+
+    <!-- TABLE TRANSACTIONS -->
+    <div *ngIf="!isLoadingTransactions" class="table-container">
+      <h3>📊 Transactions Signalables ({{ filteredTransactions.length }})</h3>
+      <table class="transactions">
+        <thead>
+          <tr>
+            <th>Réf</th>
+            <th>Montant</th>
+            <th>Date</th>
+            <th>Type</th>
+            <th>Rôle de votre banque</th>
+            <th>Statut</th>
+            <th>⚠ Litige</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let t of paginatedTransactions" 
+              [class.highlighted]="t.statut === 'AVEC_LITIGE'"
+              [class.our-flag]="t.banqueDeclaranteNom && t.banqueDeclaranteNom.includes('Notre banque')"
+              [class.external-flag]="t.banqueDeclaranteNom && !t.banqueDeclaranteNom.includes('Notre banque')">
+            
+            <td data-label="Réf">
+              <strong>{{ t.reference || 'N/A' }}</strong>
+              <small *ngIf="t.satimData && t.satimData.strCode" class="satim-code">
+                SATIM: {{ t.satimData.strCode }}
+              </small>
+            </td>
+            
+            <td data-label="Montant">{{ formatCurrency(t.montant) }}</td>
+            
+            <td data-label="Date">{{ formatDate(t.dateTransaction) }}</td>
+            
+            <td data-label="Type">
+              {{ t.type || 'N/A' }}
+              <small *ngIf="t.satimData && t.satimData.strTermIden" class="terminal-info">
+                Terminal: {{ t.satimData.strTermIden }}
+              </small>
+            </td>
+
+            <!-- ✅ NOUVELLE COLONNE : Rôle de la banque -->
+            <td data-label="Rôle">
+              <div class="bank-role">
+                <span *ngIf="t.banqueEmettrice?.id === institutionId" class="role-badge issuer">
+                  🏧 Émettrice
+                </span>
+                <span *ngIf="t.banqueAcquereuse?.id === institutionId" class="role-badge acquirer">
+                  🏪 Acquéreuse
+                </span>
+              </div>
+            </td>
+            
+            <td data-label="Statut">
+              <span [class]="'status-' + (t.statut || '').toLowerCase().replace('_', '-')">
+                {{ t.statut || 'NORMALE' }}
+              </span>
+            </td>
+            
+            <td data-label="Litige">
+              <div *ngIf="t.statut === 'AVEC_LITIGE'" class="litige-indicator">
+                <div class="litige-flag">🚩 Oui</div>
+                <div *ngIf="t.banqueDeclaranteNom" class="banque-declarante"
+                     [class.our-bank]="t.banqueDeclaranteNom.includes('Notre banque')"
+                     [class.external-bank]="!t.banqueDeclaranteNom.includes('Notre banque')">
+                  <small>🏦 Signalé par:</small>
+                  <strong>{{ t.banqueDeclaranteNom }}</strong>
+                </div>
+              </div>
+              <span *ngIf="t.statut !== 'AVEC_LITIGE'" class="no-litige">❌ Non</span>
+            </td>
+            
+            <!-- ✅ MODIFIÉ : Nouvelle colonne Action avec bouton détails transaction -->
+            <td data-label="Action">
+              <button 
+                class="btn-flag" 
+                *ngIf="t.statut !== 'AVEC_LITIGE'" 
+                (click)="flagTransaction(t)"
+                [disabled]="clickedTransactions.has(getTransactionId(t))"
+                title="Signaler cette transaction selon les règles métier bancaires">
+                <span *ngIf="!clickedTransactions.has(getTransactionId(t))">🚩 Signaler</span>
+                <span *ngIf="clickedTransactions.has(getTransactionId(t))">⏳ En cours...</span>
+              </button>
+              
+              <!-- ✅ NOUVEAU : Bouton détails pour toutes les transactions -->
+              <button (click)="openTransactionDetails(t)">📄 Détails</button>
+              
+              <div *ngIf="t.statut === 'AVEC_LITIGE'" class="already-flagged">
+                <span class="flag-status">✅ Signalé</span>
+              </div>
+            </td>
+          </tr>
+          
+          <tr *ngIf="paginatedTransactions.length === 0" class="no-data">
+            <td colspan="8">
+              <div class="no-data-content">
+                <div class="no-data-icon">📭</div>
+                <p><strong>Aucune transaction signalable trouvée.</strong></p>
+                <p *ngIf="searchTerm || statutFilter || typeFilter">
+                  Essayez de modifier vos critères de recherche.
+                </p>
+                <p *ngIf="!searchTerm && !statutFilter && !typeFilter">
+                  Votre banque n'a aucune transaction où elle est émettrice ou acquéreuse.
+                </p>
+                <button (click)="clearFilters()" class="btn-clear-inline">Effacer les filtres</button>
+              </div>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- PAGINATION -->
+      <div class="pagination" *ngIf="totalPages > 1">
+        <button (click)="goToPage(currentPage - 1)" 
+                [disabled]="!canGoToPrevious" 
+                class="pagination-btn">
+          ‹ Précédent
+        </button>
+        
+        <button *ngFor="let page of paginationArray" 
+                [class.active]="currentPage === page"
+                (click)="goToPage(page)"
+                class="pagination-btn">
+          {{ page }}
+        </button>
+        
+        <button (click)="goToPage(currentPage + 1)" 
+                [disabled]="!canGoToNext" 
+                class="pagination-btn">
+          Suivant ›
+        </button>
+      </div>
+
+      <!-- INFO PAGINATION -->
+      <div class="pagination-info" *ngIf="filteredTransactions.length > 0">
+        Affichage de {{ (currentPage - 1) * itemsPerPage + 1 }} à 
+        {{ getMaxDisplayed() }} 
+        sur {{ filteredTransactions.length }} transactions signalables
+      </div>
+    </div>
+
+    <!-- LOADER LITIGES -->
+    <div *ngIf="isLoadingLitiges" class="loader">
+      <div class="spinner"></div>
+      <p>Chargement des litiges...</p>
+    </div>
+
+    <!-- TABLE LITIGES ÉMIS PAR NOTRE BANQUE -->
+    <div *ngIf="!isLoadingLitiges" class="table-container">
+      <h3>📌 Litiges signalés par notre banque ({{ litigesAcquereur.length }})</h3>
+      <table class="transactions" *ngIf="litigesAcquereur.length > 0">
+        <thead>
+          <tr>
+            <th>ID Litige</th>
+            <th>Référence Transaction</th>
+            <th>Montant</th>
+            <th>Date Transaction</th>
+            <th>Type de litige</th>
+            <th>Institution Concernée</th>
+            <th>Statut</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let l of litigesAcquereur" class="litige-row our-litige">
+            <td data-label="ID Litige">
+              <strong>#{{ l.id }}</strong>
+            </td>
+            
+            <td data-label="Référence">
+              {{ l.transaction && l.transaction.reference || 'N/A' }}
+            </td>
+            
+            <td data-label="Montant">
+              {{ l.transaction && formatCurrency(l.transaction.montant) || '0,00 MAD' }}
+            </td>
+            
+            <td data-label="Date">
+              {{ l.transaction && formatDate(l.transaction.dateTransaction) || 'N/A' }}
+            </td>
+            
+            <td data-label="Type">
+              <span class="litige-type">{{ l.type || 'AUTRE' }}</span>
+            </td>
+            
+            <td data-label="Institution Concernée">
+              <strong>{{ l.institutionDeclarantNom || 'Institution inconnue' }}</strong>
+            </td>
+            
+            <td data-label="Statut">
+              <span [class]="'status-' + (l.statut || '').toLowerCase()">
+                {{ l.statut || 'EN_COURS' }}
+              </span>
+            </td>
+            
+            <!-- ✅ MODIFIÉ : Ajout du bouton Détails -->
+            <td data-label="Action">
+              <button class="btn-view" (click)="goToTransaction(l)" title="Voir la transaction associée">
+                👁️ Voir Transaction
+              </button>
+              <button 
+                class="btn-details" 
+                (click)="openLitigeDetails(l.id)"
+                title="Voir les détails complets du litige">
+                👁️ Détails
+              </button>
+              <button class="btn-edit" title="Modifier le litige">
+                📝 Modifier
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+      
+      <div *ngIf="litigesAcquereur.length === 0" class="no-data-content">
+        <div class="no-data-icon">📭</div>
+        <p><strong>Aucun litige signalé par votre banque.</strong></p>
+        <small>Les transactions que vous signalez apparaîtront ici.</small>
+      </div>
+    </div>
+
+    <!-- SECTION LITIGES REÇUS D'AUTRES BANQUES -->
+    <div *ngIf="!isLoadingLitiges" class="table-container">
+      <h3>🚨 Litiges reçus d'autres banques ({{ litigesRecus.length }})</h3>
+      
+      <table class="transactions" *ngIf="litigesRecus.length > 0">
+        <thead>
+          <tr>
+            <th>ID Litige</th>
+            <th>Type de litige</th>
+            <th>Banque Déclarante</th>
+            <th>Date création</th>
+            <th>Description</th>
+            <th>Statut</th>
+            <th>Action</th>
+          </tr>
+        </thead>
+        <tbody>
+          <tr *ngFor="let lr of litigesRecus" class="litige-recu-row external-litige">
+            <td data-label="ID">
+              <strong>#{{ lr.id }}</strong>
+            </td>
+            
+            <td data-label="Type">
+              <span class="litige-type">{{ lr.type || 'N/A' }}</span>
+            </td>
+            
+            <td data-label="Banque Déclarante">
+              <div class="declaring-bank">
+                <strong>{{ lr.banqueDeclaranteNom || 'Banque inconnue' }}</strong>
+                <small *ngIf="lr.banqueDeclaranteNom && lr.banqueDeclaranteNom !== 'Banque inconnue'">
+                  🏦 Institution externe
+                </small>
+              </div>
+            </td>
+            
+            <td data-label="Date">
+              {{ formatDate(lr.dateCreation) }}
+            </td>
+            
+            <td data-label="Description">
+              <div class="description-cell">
+                {{ lr.description || 'Aucune description' }}
+              </div>
+            </td>
+            
+            <td data-label="Statut">
+              <span [class]="'status-' + (lr.statut || '').toLowerCase()">
+                {{ lr.statut || 'NOUVEAU' }}
+              </span>
+            </td>
+            
+            <!-- ✅ MODIFIÉ : Changement du bouton Détails -->
+            <td data-label="Action">
+              <button class="btn-respond" title="Répondre au litige (Représentation)">
+                💬 Contester
+              </button>
+              <button 
+                class="btn-details" 
+                (click)="openLitigeDetails(lr.id)"
+                title="Voir tous les détails du litige avec heure de création">
+                👁️ Détails
+              </button>
+            </td>
+          </tr>
+        </tbody>
+      </table>
+
+      <!-- MESSAGE SI AUCUN LITIGE REÇU -->
+      <div *ngIf="litigesRecus.length === 0" class="no-data-content">
+        <div class="no-data-icon">✅</div>
+        <p><strong>Aucun litige reçu d'autres banques.</strong></p>
+        <small>Excellente nouvelle ! Aucune autre banque n'a signalé de problème avec vos transactions.</small>
+      </div>
+    </div>
+
+    <!-- SECTION DE RÉSUMÉ -->
+    <div class="summary-section">
+      <h3>📋 Résumé des activités (Règles métier appliquées)</h3>
+      <div class="summary-grid">
+        <div class="summary-card">
+          <div class="summary-icon">📊</div>
+          <div class="summary-content">
+            <div class="summary-value">{{ totalSignalableTransactions }}/{{ totalTransactions }}</div>
+            <div class="summary-label">Transactions signalables</div>
+          </div>
+        </div>
+        
+        <div class="summary-card">
+          <div class="summary-icon">🚩</div>
+          <div class="summary-content">
+            <div class="summary-value">{{ litigesAcquereur.length }}</div>
+            <div class="summary-label">Litiges émis</div>
+          </div>
+        </div>
+        
+        <div class="summary-card">
+          <div class="summary-icon">🚨</div>
+          <div class="summary-content">
+            <div class="summary-value">{{ litigesRecus.length }}</div>
+            <div class="summary-label">Litiges reçus</div>
+          </div>
+        </div>
+        
+        <div class="summary-card">
+          <div class="summary-icon">🔔</div>
+          <div class="summary-content">
+            <div class="summary-value">{{ unreadNotifications.length }}</div>
+            <div class="summary-label">Notifications</div>
+          </div>
+        </div>
+      </div>
+    </div>
+  </main>
+
+  <!-- ✅ MODAL DÉTAILS LITIGE -->
+  <div class="modal-overlay" *ngIf="showDetailsModal" (click)="closeLitigeDetails()">
+    <div class="modal-details" (click)="$event.stopPropagation()">
+      
+      <!-- Header du modal -->
+      <div class="modal-header">
+        <h3>🔍 Détails complets du litige</h3>
+        <button class="modal-close" (click)="closeLitigeDetails()">✕</button>
+      </div>
+
+      <!-- Contenu du modal -->
+      <div class="modal-body">
+        
+        <!-- Loader -->
+        <div *ngIf="isLoadingDetails" class="modal-loader">
+          <div class="spinner"></div>
+          <p>Chargement des détails...</p>
+        </div>
+
+        <!-- Erreur -->
+        <div *ngIf="detailsError" class="modal-error">
+          <div class="error-icon">⚠️</div>
+          <p>{{ detailsError }}</p>
+          <button class="btn-retry" (click)="openLitigeDetails(selectedLitigeDetails?.id || 0)">
+            🔄 Réessayer
+          </button>
+        </div>
+
+        <!-- Détails du litige -->
+        <div *ngIf="selectedLitigeDetails && !isLoadingDetails" class="details-content">
+          
+          <!-- Informations principales -->
+          <div class="details-section">
+            <h4>📋 Informations du litige</h4>
+            <div class="details-grid">
+              <div class="detail-item">
+                <span class="detail-label">ID Litige :</span>
+                <span class="detail-value">#{{ selectedLitigeDetails.id }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Type :</span>
+                <span class="detail-value">{{ selectedLitigeDetails.type }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Statut :</span>
+                <span class="detail-value status-badge" 
+                      [class]="'status-' + (selectedLitigeDetails.statut || '').toLowerCase()">
+                  {{ selectedLitigeDetails.statut }}
+                </span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Priorité :</span>
+                <span class="detail-value priority-badge" 
+                      [class]="getPriorityClass(selectedLitigeDetails.priorite)">
+                  {{ selectedLitigeDetails.priorite }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- ✅ DATE/HEURE COMPLÈTE (comme demandé) -->
+          <div class="details-section">
+            <h4>⏰ Informations temporelles</h4>
+            <div class="details-grid">
+              <div class="detail-item full-width">
+                <span class="detail-label">Date et heure de création :</span>
+                <span class="detail-value datetime-complete">
+                  {{ formatDateTimeComplete(selectedLitigeDetails.dateCreation) }}
+                </span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Durée depuis création :</span>
+                <span class="detail-value">
+                  {{ formatDureeDepuisCreation(selectedLitigeDetails.dureeDepuisCreationMinutes) }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Informations banque et utilisateur -->
+          <div class="details-section">
+            <h4>🏦 Origine du litige</h4>
+            <div class="details-grid">
+              <div class="detail-item">
+                <span class="detail-label">Banque déclarante :</span>
+                <span class="detail-value">{{ selectedLitigeDetails.banqueDeclaranteNom }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Créé par :</span>
+                <span class="detail-value">{{ selectedLitigeDetails.utilisateurCreateur }}</span>
+              </div>
+            </div>
+            <div class="detail-item full-width">
+              <span class="detail-label">Description :</span>
+              <span class="detail-value description">{{ selectedLitigeDetails.description }}</span>
+            </div>
+          </div>
+
+          <!-- Détails de la transaction -->
+          <div class="details-section" *ngIf="selectedLitigeDetails.transaction">
+            <h4>💳 Détails de la transaction associée</h4>
+            <div class="transaction-details">
+              <div class="details-grid">
+                <div class="detail-item">
+                  <span class="detail-label">Référence :</span>
+                  <span class="detail-value reference">{{ selectedLitigeDetails.transaction.reference }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Montant :</span>
+                  <span class="detail-value amount">{{ formatCurrencyFromNumber(selectedLitigeDetails.transaction.montant) }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Type :</span>
+                  <span class="detail-value">{{ selectedLitigeDetails.transaction.type }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Date transaction :</span>
+                  <span class="detail-value">{{ formatDateOnly(selectedLitigeDetails.transaction.dateTransaction) }}</span>
+                </div>
+              </div>
+
+              <!-- Informations bancaires de la transaction -->
+              <div class="bank-details" *ngIf="selectedLitigeDetails.transaction.banqueEmettrice || selectedLitigeDetails.transaction.banqueAcquereuse">
+                <div class="bank-item" *ngIf="selectedLitigeDetails.transaction.banqueEmettrice">
+                  <h5>🏧 Banque Émettrice</h5>
+                  <p><strong>{{ selectedLitigeDetails.transaction.banqueEmettrice.nom }}</strong></p>
+                  <small>Code: {{ selectedLitigeDetails.transaction.banqueEmettrice.code }}</small>
+                </div>
+                <div class="bank-item" *ngIf="selectedLitigeDetails.transaction.banqueAcquereuse">
+                  <h5>🏪 Banque Acquéreuse</h5>
+                  <p><strong>{{ selectedLitigeDetails.transaction.banqueAcquereuse.nom }}</strong></p>
+                  <small>Code: {{ selectedLitigeDetails.transaction.banqueAcquereuse.code }}</small>
+                </div>
+              </div>
+
+              <!-- Données SATIM si disponibles -->
+              <div class="satim-details" *ngIf="selectedLitigeDetails.transaction.satimData">
+                <h5>📡 Données SATIM</h5>
+                <div class="details-grid satim-grid">
+                  <div class="detail-item">
+                    <span class="detail-label">Code SATIM :</span>
+                    <span class="detail-value">{{ selectedLitigeDetails.transaction.satimData.strCode }}</span>
+                  </div>
+                  <div class="detail-item">
+                    <span class="detail-label">Terminal :</span>
+                    <span class="detail-value">{{ selectedLitigeDetails.transaction.satimData.strTermIden }}</span>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Footer du modal -->
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeLitigeDetails()">
+          ✕ Fermer
+        </button>
+        <button 
+          *ngIf="selectedLitigeDetails?.peutEtreModifie" 
+          class="btn-primary"
+          title="Modifier ce litige">
+          📝 Modifier
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+  <!-- ✅ MODAL DÉTAILS TRANSACTION -->
+  <div class="modal-overlay" *ngIf="showTransactionDetailsModal" (click)="closeTransactionDetails()">
+    <div class="modal-details" (click)="$event.stopPropagation()">
+      
+      <!-- Header du modal -->
+      <div class="modal-header">
+        <h3>📄 Détails complets de la transaction</h3>
+        <button class="modal-close" (click)="closeTransactionDetails()">✕</button>
+      </div>
+
+      <!-- Contenu du modal -->
+      <div class="modal-body">
+        
+        <!-- Loader -->
+        <div *ngIf="isLoadingTransactionDetails" class="modal-loader">
+          <div class="spinner"></div>
+          <p>Chargement des détails de la transaction...</p>
+        </div>
+
+        <!-- Erreur -->
+        <div *ngIf="transactionDetailsError" class="modal-error">
+          <div class="error-icon">⚠️</div>
+          <p>{{ transactionDetailsError }}</p>
+          <button class="btn-retry" (click)="openTransactionDetails(selectedTransactionDetails?.id || 0)">
+            🔄 Réessayer
+          </button>
+        </div>
+
+        <!-- Détails de la transaction -->
+        <div *ngIf="selectedTransactionDetails && !isLoadingTransactionDetails" class="details-content">
+          
+          <!-- Informations principales -->
+          <div class="details-section">
+            <h4>💳 Informations de la transaction</h4>
+            <div class="details-grid">
+              <div class="detail-item">
+                <span class="detail-label">ID Transaction :</span>
+                <span class="detail-value">#{{ selectedTransactionDetails.id }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Référence :</span>
+                <span class="detail-value reference">{{ selectedTransactionDetails.reference }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Montant :</span>
+                <span class="detail-value amount">{{ formatCurrencyFromNumber(selectedTransactionDetails.montant) }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Type :</span>
+                <span class="detail-value">
+                  {{ getTransactionTypeIcon(selectedTransactionDetails.type) }} {{ selectedTransactionDetails.type }}
+                </span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Statut :</span>
+                <span class="detail-value status-badge" 
+                      [class]="getTransactionStatutClass(selectedTransactionDetails.statut)">
+                  {{ selectedTransactionDetails.statut }}
+                </span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Priorité :</span>
+                <span class="detail-value priority-badge" 
+                      [class]="getTransactionPriorityClass(selectedTransactionDetails.priorite)">
+                  {{ selectedTransactionDetails.priorite }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Informations temporelles -->
+          <div class="details-section">
+            <h4>📅 Informations temporelles</h4>
+            <div class="details-grid">
+              <div class="detail-item">
+                <span class="detail-label">Date de transaction :</span>
+                <span class="detail-value">{{ formatDateOnly(selectedTransactionDetails.dateTransaction) }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Âge de la transaction :</span>
+                <span class="detail-value">
+                  {{ formatDureeDepuisCreationJours(selectedTransactionDetails.dureeDepuisCreationJours) }}
+                </span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Informations bancaires -->
+          <div class="details-section">
+            <h4>🏦 Informations bancaires</h4>
+            <div class="bank-details">
+              <div class="bank-item" *ngIf="selectedTransactionDetails.banqueEmettrice">
+                <h5>🏧 Banque Émettrice</h5>
+                <p><strong>{{ selectedTransactionDetails.banqueEmettrice.nom }}</strong></p>
+                <small>Code: {{ selectedTransactionDetails.banqueEmettrice.code }}</small>
+                <small>Type: {{ selectedTransactionDetails.banqueEmettrice.type }}</small>
+              </div>
+              <div class="bank-item" *ngIf="selectedTransactionDetails.banqueAcquereuse">
+                <h5>🏪 Banque Acquéreuse</h5>
+                <p><strong>{{ selectedTransactionDetails.banqueAcquereuse.nom }}</strong></p>
+                <small>Code: {{ selectedTransactionDetails.banqueAcquereuse.code }}</small>
+                <small>Type: {{ selectedTransactionDetails.banqueAcquereuse.type }}</small>
+              </div>
+            </div>
+          </div>
+
+          <!-- Données SATIM -->
+          <div class="details-section" *ngIf="selectedTransactionDetails.satimData">
+            <h4>📡 Données SATIM</h4>
+            <div class="satim-details">
+              <div class="details-grid satim-grid">
+                <div class="detail-item">
+                  <span class="detail-label">Code SATIM :</span>
+                  <span class="detail-value">{{ selectedTransactionDetails.satimData.strCode }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Code Réconciliation :</span>
+                  <span class="detail-value">{{ selectedTransactionDetails.satimData.strRecoCode }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Terminal :</span>
+                  <span class="detail-value">{{ selectedTransactionDetails.satimData.strTermIden }}</span>
+                </div>
+                <div class="detail-item">
+                  <span class="detail-label">Code Opération :</span>
+                  <span class="detail-value">{{ selectedTransactionDetails.satimData.strOperCode }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Données META -->
+          <div class="details-section" *ngIf="selectedTransactionDetails.metaData">
+            <h4>🔗 Métadonnées</h4>
+            <div class="details-grid">
+              <div class="detail-item">
+                <span class="detail-label">META ID :</span>
+                <span class="detail-value">{{ selectedTransactionDetails.metaData.id }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Code META :</span>
+                <span class="detail-value">{{ selectedTransactionDetails.metaData.strCode }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Litige associé -->
+          <div class="details-section" *ngIf="selectedTransactionDetails.litige">
+            <h4>🚩 Litige associé</h4>
+            <div class="details-grid">
+              <div class="detail-item">
+                <span class="detail-label">ID Litige :</span>
+                <span class="detail-value">#{{ selectedTransactionDetails.litige.id }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Type de litige :</span>
+                <span class="detail-value">{{ selectedTransactionDetails.litige.type }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Statut du litige :</span>
+                <span class="detail-value">{{ selectedTransactionDetails.litige.statut }}</span>
+              </div>
+              <div class="detail-item">
+                <span class="detail-label">Banque déclarante :</span>
+                <span class="detail-value">{{ selectedTransactionDetails.litige.banqueDeclaranteNom }}</span>
+              </div>
+              <div class="detail-item full-width">
+                <span class="detail-label">Description :</span>
+                <span class="detail-value description">{{ selectedTransactionDetails.litige.description }}</span>
+              </div>
+            </div>
+          </div>
+
+        </div>
+      </div>
+
+      <!-- Footer du modal -->
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeTransactionDetails()">
+          ✕ Fermer
+        </button>
+      </div>
+
+    </div>
+  </div>
+
+</div>

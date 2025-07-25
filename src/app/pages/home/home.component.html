@@ -1,0 +1,101 @@
+<div class="particles" appParticles></div>
+
+<div class="topbar">
+  <div class="logo-section">
+    <img src="assets/images/logoS2MBordless.png" alt="DMS Logo" class="logo-img" />
+    <span class="logo-text">DMS</span>
+  </div>
+
+  <div class="topbar-buttons">
+    <button class="btn btn-secondary" (click)="onLogin()">Connexion</button>
+    <button class="btn btn-primary" (click)="onSignUp()">S'inscrire</button>
+    <button class="menu-toggle" (click)="toggleSidebar()">☰</button>
+  </div>
+</div>
+
+<div class="container">
+  <aside class="sidebar" [class.closed]="sidebarClosed">
+    <div>
+      <div class="menu">
+        <h4>Dashboard</h4>
+        <div class="menu-item" (click)="navigateTo('/dashboard')">🏠 Tableau de bord</div>
+        <div class="menu-item" (click)="navigateTo('/messages')">📩 Messages</div>
+        <div class="menu-item" (click)="navigateTo('/users')">👤 Utilisateurs</div>
+
+        <h4>Réclamations</h4>
+        <div class="menu-item" (click)="navigateTo('/disputes')">📂 Litiges</div>
+        <div class="menu-item" (click)="navigateTo('/institutions')">🏦 Institutions</div>
+        
+        <h4>Organisation</h4>
+        <div class="menu-item" (click)="navigateTo('/employees')">👥 Employés</div>
+        <div class="menu-item" (click)="navigateTo('/statistics')">📊 Statistiques</div>
+        <div class="menu-item" (click)="navigateTo('/reports')">🧾 Rapports</div>
+      </div>
+    </div>
+    <div class="settings-button" (click)="navigateTo('/settings')">⚙️ Paramètres</div>
+  </aside>
+
+  <main class="content">
+    <div class="hero-section">
+      <h1>Dispute Management System</h1>
+      <p>Gérez efficacement vos litiges et réclamations avec notre plateforme moderne</p>
+      <div class="hero-cta">
+        <button class="btn btn-hero btn-hero-primary" (click)="onGetStarted()">
+          Commencer maintenant
+        </button>
+        <button class="btn btn-hero btn-hero-secondary" (click)="onDemo()">
+          Voir la démo
+        </button>
+      </div>
+    </div>
+
+    <div class="stats-section">
+      <div class="stat-card">
+        <div class="stat-number">1,200+</div>
+        <div class="stat-label">Litiges résolus</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">95%</div>
+        <div class="stat-label">Taux de satisfaction</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">24/7</div>
+        <div class="stat-label">Support disponible</div>
+      </div>
+      <div class="stat-card">
+        <div class="stat-number">48h</div>
+        <div class="stat-label">Temps de réponse</div>
+      </div>
+    </div>
+
+    <div class="features-section">
+      <div class="feature-card">
+        <span class="feature-icon">🎯</span>
+        <h3>Gestion Intelligente</h3>
+        <p>Automatisez le traitement de vos litiges avec notre IA avancée et réduisez les délais de résolution.</p>
+      </div>
+      
+      <div class="feature-card">
+        <span class="feature-icon">📊</span>
+        <h3>Analytics Avancés</h3>
+        <p>Obtenez des insights détaillés sur vos performances et identifiez les tendances grâce à nos tableaux de bord.</p>
+      </div>
+      
+      <div class="feature-card">
+        <span class="feature-icon">🔒</span>
+        <h3>Sécurité Renforcée</h3>
+        <p>Protégez vos données sensibles avec notre infrastructure de sécurité de niveau bancaire.</p>
+      </div>
+      
+      <div class="feature-card">
+        <span class="feature-icon">⚡</span>
+        <h3>Performance Optimale</h3>
+        <p>Bénéficiez d'une plateforme ultra-rapide et fiable, disponible 24h/24 et 7j/7.</p>
+      </div>
+    </div>
+
+    <footer>
+      &copy; 2025 DMS - Dispute Management System. Tous droits réservés.
+    </footer>
+  </main>
+</div>
