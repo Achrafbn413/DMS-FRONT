@@ -45,6 +45,15 @@ export interface Litige {
   // ✅ Champ fourni par le backend
   institutionDeclarantNom?: string;
 }
+export interface LitigeResponseDTO {
+  id: number;
+  type: string;
+  statut: string;
+  description: string;
+  dateCreation: string;
+  banqueDeclaranteNom: string;
+  institutionDeclarantNom: string;
+}
 
 // ✅ Interface pour les litiges reçus (LitigeResponseDTO)
 export interface LitigeRecu {

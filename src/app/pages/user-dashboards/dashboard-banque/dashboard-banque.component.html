@@ -7,6 +7,42 @@
 
     <nav>
       <a class="nav-item" (click)="refreshData()">🔄 Actualiser</a>
+      
+      <a class="nav-item" 
+         [class.active]="activeTab === 'transactions'"
+         (click)="setActiveTab('transactions')">
+        📊 Transactions
+      </a>
+      
+      <a class="nav-item" 
+         [class.active]="activeTab === 'litiges-recus'"
+         (click)="setActiveTab('litiges-recus')">
+        🚨 Litiges Reçus
+        <span class="badge" *ngIf="litigesRecus.length > 0">
+          {{ litigesRecus.length }}
+        </span>
+      </a>
+      
+      <a class="nav-item" 
+         [class.active]="activeTab === 'litiges-emis'"
+         (click)="setActiveTab('litiges-emis')">
+        🚩 Litiges Émis
+        <span class="badge" *ngIf="litigesAcquereur.length > 0">
+          {{ litigesAcquereur.length }}
+        </span>
+      </a>
+      
+      <a class="nav-item" 
+         [class.active]="activeTab === 'chargeback'"
+         (click)="setActiveTab('chargeback')">
+        💳 Chargeback
+        <span class="chargeback-badge" *ngIf="chargebacks && chargebacks.length > 0">
+          {{ chargebacks.length }}
+        </span>
+      </a>
+      
+      <hr class="nav-separator">
+      
       <a class="nav-item" (click)="toggleNotificationPanel()" [class.active]="showNotificationPanel">
         🔔 Notifications 
         <span class="badge" *ngIf="unreadNotifications.length > 0">
@@ -21,7 +57,6 @@
 
   <!-- PANNEAU DE NOTIFICATIONS -->
   <div class="notification-container">
-    <!-- Icône notification 🔔 avec compteur cliquable -->
     <div class="notification-icon" (click)="toggleNotificationPanel()">
       🔔 
       <span *ngIf="unreadNotifications.length > 0" class="notification-badge">
@@ -29,7 +64,6 @@
       </span>
     </div>
 
-    <!-- Panneau de notifications -->
     <div class="notification-panel" *ngIf="showNotificationPanel">
       <div class="notification-header">
         <h3>🔔 Notifications</h3>
@@ -75,7 +109,6 @@
           <strong>Institution :</strong> {{ institution }} | 
           <strong>Département :</strong> {{ department }}
         </p>
-        <!-- ✅ NOUVEAU : Information sur les règles métier -->
         <div class="business-rules-info" *ngIf="totalTransactions !== totalSignalableTransactions">
           <small class="info-text">
             ℹ️ Affichage conforme aux règles métier bancaires : 
@@ -86,7 +119,7 @@
       <img src="assets/images/logodms.jpg" alt="Logo" class="logo" />
     </div>
 
-    <!-- ✅ STATS MISES À JOUR -->
+    <!-- STATS GRID -->
     <div class="stats-grid">
       <div class="stat-card">
         <div class="stat-icon">📄</div>
@@ -119,348 +152,936 @@
       </div>
     </div>
 
-    <!-- FILTRES + IMPORT -->
-    <div class="actions">
-      <input type="text" 
-             [(ngModel)]="searchTerm" 
-             (ngModelChange)="filterTransactions()" 
-             placeholder="🔍 Rechercher par référence, type, montant..." />
+    <!-- ========== ONGLET TRANSACTIONS ========== -->
+    <div *ngIf="activeTab === 'transactions'">
       
-      <select [(ngModel)]="statutFilter" (change)="filterTransactions()">
-        <option value="">Tous les statuts</option>
-        <option *ngFor="let s of uniqueStatuts" [value]="s">{{ s }}</option>
-      </select>
-      
-      <select [(ngModel)]="typeFilter" (change)="filterTransactions()">
-        <option value="">Tous les types</option>
-        <option *ngFor="let t of uniqueTypes" [value]="t">{{ t }}</option>
-      </select>
-      
-      <button (click)="exportToCSV()" class="btn-download">📥 Télécharger CSV</button>
-      <button (click)="clearFilters()" class="btn-clear">🗑️ Effacer filtres</button>
+      <!-- FILTRES + IMPORT -->
+      <div class="actions">
+        <input type="text" 
+               [(ngModel)]="searchTerm" 
+               (ngModelChange)="filterTransactions()" 
+               placeholder="🔍 Rechercher par référence, type, montant..." />
+        
+        <select [(ngModel)]="statutFilter" (change)="filterTransactions()">
+          <option value="">Tous les statuts</option>
+          <option *ngFor="let s of uniqueStatuts" [value]="s">{{ s }}</option>
+        </select>
+        
+        <select [(ngModel)]="typeFilter" (change)="filterTransactions()">
+          <option value="">Tous les types</option>
+          <option *ngFor="let t of uniqueTypes" [value]="t">{{ t }}</option>
+        </select>
+        
+        <button (click)="exportToCSV()" class="btn-download">📥 Télécharger CSV</button>
+        <button (click)="clearFilters()" class="btn-clear">🗑️ Effacer filtres</button>
 
-      <label class="btn-download">
-        📤 Importer fichier CMI
-        <input type="file" (change)="onFileSelected($event)" hidden accept=".csv" />
-      </label>
-      
-      <span *ngIf="selectedFileName" class="selected-file">📂 {{ selectedFileName }}</span>
-      <span *ngIf="isUploadingFile" class="uploading">⏳ Upload en cours...</span>
-    </div>
+        <label class="btn-download">
+          📤 Importer fichier CMI
+          <input type="file" (change)="onFileSelected($event)" hidden accept=".csv" />
+        </label>
+        
+        <span *ngIf="selectedFileName" class="selected-file">📂 {{ selectedFileName }}</span>
+        <span *ngIf="isUploadingFile" class="uploading">⏳ Upload en cours...</span>
+      </div>
 
-    <!-- LOADER TRANSACTIONS -->
-    <div *ngIf="isLoadingTransactions" class="loader">
-      <div class="spinner"></div>
-      <p>Chargement des transactions...</p>
-    </div>
+      <!-- LOADER TRANSACTIONS -->
+      <div *ngIf="isLoadingTransactions" class="loader">
+        <div class="spinner"></div>
+        <p>Chargement des transactions...</p>
+      </div>
 
-    <!-- ✅ SECTION D'INFORMATION RÈGLES MÉTIER -->
-    <div class="business-rules-banner" *ngIf="!isLoadingTransactions && totalTransactions > totalSignalableTransactions">
-      <div class="banner-content">
-        <div class="banner-icon">🏦</div>
-        <div class="banner-text">
-          <strong>Règles métier bancaires appliquées</strong>
-          <p>Seules les transactions où votre banque est émettrice ou acquéreuse sont affichées.</p>
-          <small>{{ totalTransactions - totalSignalableTransactions }} transactions d'autres banques masquées</small>
+      <!-- SECTION D'INFORMATION RÈGLES MÉTIER -->
+      <div class="business-rules-banner" *ngIf="!isLoadingTransactions && totalTransactions > totalSignalableTransactions">
+        <div class="banner-content">
+          <div class="banner-icon">🏦</div>
+          <div class="banner-text">
+            <strong>Règles métier bancaires appliquées</strong>
+            <p>Seules les transactions où votre banque est émettrice ou acquéreuse sont affichées.</p>
+            <small>{{ totalTransactions - totalSignalableTransactions }} transactions d'autres banques masquées</small>
+          </div>
+          <button class="banner-btn" (click)="showBusinessRulesInfo()">
+            ℹ️ En savoir plus
+          </button>
         </div>
-        <button class="banner-btn" (click)="showBusinessRulesInfo()">
-          ℹ️ En savoir plus
-        </button>
       </div>
-    </div>
 
-    <!-- TABLE TRANSACTIONS -->
-    <div *ngIf="!isLoadingTransactions" class="table-container">
-      <h3>📊 Transactions Signalables ({{ filteredTransactions.length }})</h3>
-      <table class="transactions">
-        <thead>
-          <tr>
-            <th>Réf</th>
-            <th>Montant</th>
-            <th>Date</th>
-            <th>Type</th>
-            <th>Rôle de votre banque</th>
-            <th>Statut</th>
-            <th>⚠ Litige</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let t of paginatedTransactions" 
-              [class.highlighted]="t.statut === 'AVEC_LITIGE'"
-              [class.our-flag]="t.banqueDeclaranteNom && t.banqueDeclaranteNom.includes('Notre banque')"
-              [class.external-flag]="t.banqueDeclaranteNom && !t.banqueDeclaranteNom.includes('Notre banque')">
-            
-            <td data-label="Réf">
-              <strong>{{ t.reference || 'N/A' }}</strong>
-              <small *ngIf="t.satimData && t.satimData.strCode" class="satim-code">
-                SATIM: {{ t.satimData.strCode }}
-              </small>
-            </td>
-            
-            <td data-label="Montant">{{ formatCurrency(t.montant) }}</td>
-            
-            <td data-label="Date">{{ formatDate(t.dateTransaction) }}</td>
-            
-            <td data-label="Type">
-              {{ t.type || 'N/A' }}
-              <small *ngIf="t.satimData && t.satimData.strTermIden" class="terminal-info">
-                Terminal: {{ t.satimData.strTermIden }}
-              </small>
-            </td>
-
-            <!-- ✅ NOUVELLE COLONNE : Rôle de la banque -->
-            <td data-label="Rôle">
-              <div class="bank-role">
-                <span *ngIf="t.banqueEmettrice?.id === institutionId" class="role-badge issuer">
-                  🏧 Émettrice
-                </span>
-                <span *ngIf="t.banqueAcquereuse?.id === institutionId" class="role-badge acquirer">
-                  🏪 Acquéreuse
-                </span>
-              </div>
-            </td>
-            
-            <td data-label="Statut">
-              <span [class]="'status-' + (t.statut || '').toLowerCase().replace('_', '-')">
-                {{ t.statut || 'NORMALE' }}
-              </span>
-            </td>
-            
-            <td data-label="Litige">
-              <div *ngIf="t.statut === 'AVEC_LITIGE'" class="litige-indicator">
-                <div class="litige-flag">🚩 Oui</div>
-                <div *ngIf="t.banqueDeclaranteNom" class="banque-declarante"
-                     [class.our-bank]="t.banqueDeclaranteNom.includes('Notre banque')"
-                     [class.external-bank]="!t.banqueDeclaranteNom.includes('Notre banque')">
-                  <small>🏦 Signalé par:</small>
-                  <strong>{{ t.banqueDeclaranteNom }}</strong>
-                </div>
-              </div>
-              <span *ngIf="t.statut !== 'AVEC_LITIGE'" class="no-litige">❌ Non</span>
-            </td>
-            
-            <!-- ✅ MODIFIÉ : Nouvelle colonne Action avec bouton détails transaction -->
-            <td data-label="Action">
-              <button 
-                class="btn-flag" 
-                *ngIf="t.statut !== 'AVEC_LITIGE'" 
-                (click)="flagTransaction(t)"
-                [disabled]="clickedTransactions.has(getTransactionId(t))"
-                title="Signaler cette transaction selon les règles métier bancaires">
-                <span *ngIf="!clickedTransactions.has(getTransactionId(t))">🚩 Signaler</span>
-                <span *ngIf="clickedTransactions.has(getTransactionId(t))">⏳ En cours...</span>
-              </button>
+      <!-- TABLE TRANSACTIONS -->
+      <div *ngIf="!isLoadingTransactions" class="table-container">
+        <h3>📊 Transactions Signalables ({{ filteredTransactions.length }})</h3>
+        <table class="transactions">
+          <thead>
+            <tr>
+              <th>Réf</th>
+              <th>Montant</th>
+              <th>Date</th>
+              <th>Type</th>
+              <th>Rôle de votre banque</th>
+              <th>Statut</th>
+              <th>⚠ Litige</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let t of paginatedTransactions" 
+                [class]="getTransactionRowClass(t)">
               
-              <!-- ✅ NOUVEAU : Bouton détails pour toutes les transactions -->
-              <button (click)="openTransactionDetails(t)">📄 Détails</button>
-              
-              <div *ngIf="t.statut === 'AVEC_LITIGE'" class="already-flagged">
-                <span class="flag-status">✅ Signalé</span>
-              </div>
-            </td>
-          </tr>
-          
-          <tr *ngIf="paginatedTransactions.length === 0" class="no-data">
-            <td colspan="8">
-              <div class="no-data-content">
-                <div class="no-data-icon">📭</div>
-                <p><strong>Aucune transaction signalable trouvée.</strong></p>
-                <p *ngIf="searchTerm || statutFilter || typeFilter">
-                  Essayez de modifier vos critères de recherche.
-                </p>
-                <p *ngIf="!searchTerm && !statutFilter && !typeFilter">
-                  Votre banque n'a aucune transaction où elle est émettrice ou acquéreuse.
-                </p>
-                <button (click)="clearFilters()" class="btn-clear-inline">Effacer les filtres</button>
-              </div>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-
-      <!-- PAGINATION -->
-      <div class="pagination" *ngIf="totalPages > 1">
-        <button (click)="goToPage(currentPage - 1)" 
-                [disabled]="!canGoToPrevious" 
-                class="pagination-btn">
-          ‹ Précédent
-        </button>
-        
-        <button *ngFor="let page of paginationArray" 
-                [class.active]="currentPage === page"
-                (click)="goToPage(page)"
-                class="pagination-btn">
-          {{ page }}
-        </button>
-        
-        <button (click)="goToPage(currentPage + 1)" 
-                [disabled]="!canGoToNext" 
-                class="pagination-btn">
-          Suivant ›
-        </button>
-      </div>
-
-      <!-- INFO PAGINATION -->
-      <div class="pagination-info" *ngIf="filteredTransactions.length > 0">
-        Affichage de {{ (currentPage - 1) * itemsPerPage + 1 }} à 
-        {{ getMaxDisplayed() }} 
-        sur {{ filteredTransactions.length }} transactions signalables
-      </div>
-    </div>
-
-    <!-- LOADER LITIGES -->
-    <div *ngIf="isLoadingLitiges" class="loader">
-      <div class="spinner"></div>
-      <p>Chargement des litiges...</p>
-    </div>
-
-    <!-- TABLE LITIGES ÉMIS PAR NOTRE BANQUE -->
-    <div *ngIf="!isLoadingLitiges" class="table-container">
-      <h3>📌 Litiges signalés par notre banque ({{ litigesAcquereur.length }})</h3>
-      <table class="transactions" *ngIf="litigesAcquereur.length > 0">
-        <thead>
-          <tr>
-            <th>ID Litige</th>
-            <th>Référence Transaction</th>
-            <th>Montant</th>
-            <th>Date Transaction</th>
-            <th>Type de litige</th>
-            <th>Institution Concernée</th>
-            <th>Statut</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let l of litigesAcquereur" class="litige-row our-litige">
-            <td data-label="ID Litige">
-              <strong>#{{ l.id }}</strong>
-            </td>
-            
-            <td data-label="Référence">
-              {{ l.transaction && l.transaction.reference || 'N/A' }}
-            </td>
-            
-            <td data-label="Montant">
-              {{ l.transaction && formatCurrency(l.transaction.montant) || '0,00 MAD' }}
-            </td>
-            
-            <td data-label="Date">
-              {{ l.transaction && formatDate(l.transaction.dateTransaction) || 'N/A' }}
-            </td>
-            
-            <td data-label="Type">
-              <span class="litige-type">{{ l.type || 'AUTRE' }}</span>
-            </td>
-            
-            <td data-label="Institution Concernée">
-              <strong>{{ l.institutionDeclarantNom || 'Institution inconnue' }}</strong>
-            </td>
-            
-            <td data-label="Statut">
-              <span [class]="'status-' + (l.statut || '').toLowerCase()">
-                {{ l.statut || 'EN_COURS' }}
-              </span>
-            </td>
-            
-            <!-- ✅ MODIFIÉ : Ajout du bouton Détails -->
-            <td data-label="Action">
-              <button class="btn-view" (click)="goToTransaction(l)" title="Voir la transaction associée">
-                👁️ Voir Transaction
-              </button>
-              <button 
-                class="btn-details" 
-                (click)="openLitigeDetails(l.id)"
-                title="Voir les détails complets du litige">
-                👁️ Détails
-              </button>
-              <button class="btn-edit" title="Modifier le litige">
-                📝 Modifier
-              </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
-      
-      <div *ngIf="litigesAcquereur.length === 0" class="no-data-content">
-        <div class="no-data-icon">📭</div>
-        <p><strong>Aucun litige signalé par votre banque.</strong></p>
-        <small>Les transactions que vous signalez apparaîtront ici.</small>
-      </div>
-    </div>
-
-    <!-- SECTION LITIGES REÇUS D'AUTRES BANQUES -->
-    <div *ngIf="!isLoadingLitiges" class="table-container">
-      <h3>🚨 Litiges reçus d'autres banques ({{ litigesRecus.length }})</h3>
-      
-      <table class="transactions" *ngIf="litigesRecus.length > 0">
-        <thead>
-          <tr>
-            <th>ID Litige</th>
-            <th>Type de litige</th>
-            <th>Banque Déclarante</th>
-            <th>Date création</th>
-            <th>Description</th>
-            <th>Statut</th>
-            <th>Action</th>
-          </tr>
-        </thead>
-        <tbody>
-          <tr *ngFor="let lr of litigesRecus" class="litige-recu-row external-litige">
-            <td data-label="ID">
-              <strong>#{{ lr.id }}</strong>
-            </td>
-            
-            <td data-label="Type">
-              <span class="litige-type">{{ lr.type || 'N/A' }}</span>
-            </td>
-            
-            <td data-label="Banque Déclarante">
-              <div class="declaring-bank">
-                <strong>{{ lr.banqueDeclaranteNom || 'Banque inconnue' }}</strong>
-                <small *ngIf="lr.banqueDeclaranteNom && lr.banqueDeclaranteNom !== 'Banque inconnue'">
-                  🏦 Institution externe
+              <td data-label="Réf">
+                <strong>{{ t.reference || 'N/A' }}</strong>
+                <small *ngIf="t.satimData && t.satimData.strCode" class="satim-code">
+                  SATIM: {{ t.satimData.strCode }}
                 </small>
+              </td>
+              
+              <td data-label="Montant">{{ formatCurrency(t.montant) }}</td>
+              
+              <td data-label="Date">{{ formatDate(t.dateTransaction) }}</td>
+              
+              <td data-label="Type">
+                {{ t.type || 'N/A' }}
+                <small *ngIf="t.satimData && t.satimData.strTermIden" class="terminal-info">
+                  Terminal: {{ t.satimData.strTermIden }}
+                </small>
+              </td>
+
+              <!-- Rôle de la banque -->
+              <td data-label="Rôle">
+                <div class="bank-role">
+                  <span *ngIf="t.banqueEmettrice?.id === institutionId" class="role-badge issuer">
+                    🏧 Émettrice
+                  </span>
+                  <span *ngIf="t.banqueAcquereuse?.id === institutionId" class="role-badge acquirer">
+                    🏪 Acquéreuse
+                  </span>
+                </div>
+              </td>
+              
+              <td data-label="Statut">
+                <span [class]="'status-' + (t.statut || '').toLowerCase().replace('_', '-')">
+                  {{ t.statut || 'NORMALE' }}
+                </span>
+              </td>
+              
+              <td data-label="Litige">
+                <div *ngIf="t.statut === 'AVEC_LITIGE'" class="litige-indicator">
+                  <div class="litige-flag">🚩 Oui</div>
+                  <div *ngIf="t.banqueDeclaranteNom" class="banque-declarante"
+                       [class.our-bank]="t.banqueDeclaranteNom.includes('Notre banque')"
+                       [class.external-bank]="!t.banqueDeclaranteNom.includes('Notre banque')">
+                    <small>🏦 Signalé par:</small>
+                    <strong>{{ t.banqueDeclaranteNom }}</strong>
+                  </div>
+                </div>
+                <span *ngIf="t.statut !== 'AVEC_LITIGE'" class="no-litige">❌ Non</span>
+              </td>
+              
+              <!-- ACTION AVEC BOUTON CHARGEBACK INTÉGRÉ -->
+              <td data-label="Action">
+                <div class="action-buttons-container">
+                  
+                  <!-- BOUTON SIGNALER -->
+                  <button 
+                    class="btn-flag" 
+                    *ngIf="t.statut !== 'AVEC_LITIGE'" 
+                    (click)="flagTransaction(t)"
+                    [disabled]="clickedTransactions.has(getTransactionId(t))"
+                    title="Signaler cette transaction selon les règles métier bancaires">
+                    <span *ngIf="!clickedTransactions.has(getTransactionId(t))">🚩 Signaler</span>
+                    <span *ngIf="clickedTransactions.has(getTransactionId(t))">⏳ En cours...</span>
+                  </button>
+                  
+                  <!-- BOUTON CHARGEBACK -->
+                  <button 
+                    class="btn-chargeback" 
+                    *ngIf="canInitiateChargeback(t)"
+                    (click)="openChargebackModal(t)"
+                    title="Initier un chargeback pour cette transaction (Banque émettrice uniquement)">
+                    💳 Chargeback
+                  </button>
+                  
+                  <!-- MESSAGE INFORMATIF CHARGEBACK -->
+                  <small class="chargeback-info" *ngIf="t.statut === 'AVEC_LITIGE' && !canInitiateChargeback(t)">
+                    <span *ngIf="t.banqueEmettrice?.id !== institutionId" class="not-issuer">
+                      ℹ️ Chargeback disponible pour la banque émettrice uniquement
+                    </span>
+                    <span *ngIf="t.banqueEmettrice?.id === institutionId" class="chargeback-exists">
+                      💳 Chargeback déjà initié ou en cours
+                    </span>
+                  </small>
+                  
+                  <!-- BOUTON DÉTAILS -->
+                  <button 
+                    class="btn-details" 
+                    (click)="openTransactionDetails(t)"
+                    title="Voir les détails complets de la transaction">
+                    👁️ Détails
+                  </button>
+                  
+                  <!-- STATUS DÉJÀ SIGNALÉ -->
+                  <div *ngIf="t.statut === 'AVEC_LITIGE'" class="already-flagged">
+                    <span class="flag-status">✅ Signalé</span>
+                    
+                    <!-- INDICATEUR CHARGEBACK ACTIF -->
+                    <div class="chargeback-status" *ngIf="hasActiveChargeback(t)">
+                      <span class="chargeback-active">💳 Chargeback actif</span>
+                      <small class="chargeback-phase">Phase: {{ getActiveChargebackPhase(t) }}</small>
+                    </div>
+                  </div>
+                  
+                </div>
+              </td>
+            </tr>
+            
+            <tr *ngIf="paginatedTransactions.length === 0" class="no-data">
+              <td colspan="8">
+                <div class="no-data-content">
+                  <div class="no-data-icon">📭</div>
+                  <p><strong>Aucune transaction signalable trouvée.</strong></p>
+                  <p *ngIf="searchTerm || statutFilter || typeFilter">
+                    Essayez de modifier vos critères de recherche.
+                  </p>
+                  <p *ngIf="!searchTerm && !statutFilter && !typeFilter">
+                    Votre banque n'a aucune transaction où elle est émettrice ou acquéreuse.
+                  </p>
+                  <button (click)="clearFilters()" class="btn-clear-inline">Effacer les filtres</button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <!-- PAGINATION -->
+        <div class="pagination" *ngIf="totalPages > 1">
+          <button (click)="goToPage(currentPage - 1)" 
+                  [disabled]="!canGoToPrevious" 
+                  class="pagination-btn">
+            ‹ Précédent
+          </button>
+          
+          <button *ngFor="let page of paginationArray" 
+                  [class.active]="currentPage === page"
+                  (click)="goToPage(page)"
+                  class="pagination-btn">
+            {{ page }}
+          </button>
+          
+          <button (click)="goToPage(currentPage + 1)" 
+                  [disabled]="!canGoToNext" 
+                  class="pagination-btn">
+            Suivant ›
+          </button>
+        </div>
+
+        <!-- INFO PAGINATION -->
+        <div class="pagination-info" *ngIf="filteredTransactions.length > 0">
+          Affichage de {{ (currentPage - 1) * itemsPerPage + 1 }} à 
+          {{ getMaxDisplayed() }} 
+          sur {{ filteredTransactions.length }} transactions signalables
+        </div>
+      </div>
+    </div>
+    <!-- ========== ONGLET LITIGES REÇUS ========== -->
+    <div *ngIf="activeTab === 'litiges-recus'">
+      
+      <div *ngIf="isLoadingLitiges" class="loader">
+        <div class="spinner"></div>
+        <p>Chargement des litiges reçus...</p>
+      </div>
+
+      <div *ngIf="!isLoadingLitiges" class="table-container">
+        <h3>🚨 Litiges reçus d'autres banques ({{ litigesRecus.length }})</h3>
+        
+        <div class="page-description">
+          <div class="description-icon">🚨</div>
+          <div class="description-text">
+            <strong>Litiges reçus</strong> - Litiges signalés par d'autres banques concernant vos transactions.
+            <br>
+            <small>Vous devez analyser et répondre à ces litiges selon les procédures bancaires.</small>
+          </div>
+        </div>
+        
+        <table class="transactions" *ngIf="litigesRecus.length > 0">
+          <thead>
+            <tr>
+              <th>ID Litige</th>
+              <th>Type de litige</th>
+              <th>Banque Déclarante</th>
+              <th>Date création</th>
+              <th>Description</th>
+              <th>Statut</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let lr of litigesRecus" class="litige-recu-row external-litige">
+              <td data-label="ID">
+                <strong>#{{ lr.id }}</strong>
+              </td>
+              
+              <td data-label="Type">
+                <span class="litige-type">{{ lr.type || 'N/A' }}</span>
+              </td>
+              
+              <td data-label="Banque Déclarante">
+                <div class="declaring-bank">
+                  <strong>{{ lr.banqueDeclaranteNom || 'Banque inconnue' }}</strong>
+                  <small *ngIf="lr.banqueDeclaranteNom && lr.banqueDeclaranteNom !== 'Banque inconnue'">
+                    🏦 Institution externe
+                  </small>
+                </div>
+              </td>
+              
+              <td data-label="Date">
+                {{ formatDate(lr.dateCreation) }}
+              </td>
+              
+              <td data-label="Description">
+                <div class="description-cell">
+                  {{ lr.description || 'Aucune description' }}
+                </div>
+              </td>
+              
+              <td data-label="Statut">
+                <span [class]="'status-' + (lr.statut || '').toLowerCase()">
+                  {{ lr.statut || 'NOUVEAU' }}
+                </span>
+              </td>
+              
+              <td data-label="Action">
+                <div class="action-buttons-container">
+                  <button class="btn-respond" title="Répondre au litige (Représentation)">
+                    💬 Contester
+                  </button>
+                  <button 
+                    class="btn-details" 
+                    (click)="openLitigeDetails(lr.id)"
+                    title="Voir tous les détails du litige avec heure de création">
+                    👁️ Détails
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+
+        <div *ngIf="litigesRecus.length === 0" class="no-data-content">
+          <div class="no-data-icon">✅</div>
+          <p><strong>Aucun litige reçu d'autres banques.</strong></p>
+          <small>Excellente nouvelle ! Aucune autre banque n'a signalé de problème avec vos transactions.</small>
+        </div>
+      </div>
+    </div>
+
+    <!-- ========== ONGLET LITIGES ÉMIS ========== -->
+    <div *ngIf="activeTab === 'litiges-emis'">
+      
+      <div *ngIf="isLoadingLitiges" class="loader">
+        <div class="spinner"></div>
+        <p>Chargement des litiges émis...</p>
+      </div>
+
+      <div *ngIf="!isLoadingLitiges" class="table-container">
+        <h3>📌 Litiges signalés par notre banque ({{ litigesAcquereur.length }})</h3>
+        
+        <div class="page-description">
+          <div class="description-icon">📌</div>
+          <div class="description-text">
+            <strong>Litiges émis</strong> - Litiges que vous avez signalés concernant des transactions.
+            <br>
+            <small>Suivez l'état de vos signalements et gérez les réponses des autres banques.</small>
+          </div>
+        </div>
+        
+        <table class="transactions" *ngIf="litigesAcquereur.length > 0">
+          <thead>
+            <tr>
+              <th>ID Litige</th>
+              <th>Référence Transaction</th>
+              <th>Montant</th>
+              <th>Date Transaction</th>
+              <th>Type de litige</th>
+              <th>Institution Concernée</th>
+              <th>Statut</th>
+              <th>Action</th>
+            </tr>
+          </thead>
+          <tbody>
+            <tr *ngFor="let l of litigesAcquereur" class="litige-row our-litige">
+              <td data-label="ID Litige">
+                <strong>#{{ l.id }}</strong>
+              </td>
+              
+              <td data-label="Référence">
+                {{ l.transaction && l.transaction.reference || 'N/A' }}
+              </td>
+              
+              <td data-label="Montant">
+                {{ l.transaction && formatCurrency(l.transaction.montant) || '0,00 MAD' }}
+              </td>
+              
+              <td data-label="Date">
+                {{ l.transaction && formatDate(l.transaction.dateTransaction) || 'N/A' }}
+              </td>
+              
+              <td data-label="Type">
+                <span class="litige-type">{{ l.type || 'AUTRE' }}</span>
+              </td>
+              
+              <td data-label="Institution Concernée">
+                <strong>{{ l.institutionDeclarantNom || 'Institution inconnue' }}</strong>
+              </td>
+              
+              <td data-label="Statut">
+                <span [class]="'status-' + (l.statut || '').toLowerCase()">
+                  {{ l.statut || 'EN_COURS' }}
+                </span>
+              </td>
+              
+              <td data-label="Action">
+                <div class="action-buttons-container">
+                  <button class="btn-view" (click)="goToTransaction(l)" title="Voir la transaction associée">
+                    👁️ Voir Transaction
+                  </button>
+                  <button 
+                    class="btn-details" 
+                    (click)="openLitigeDetails(l.id)"
+                    title="Voir les détails complets du litige">
+                    👁️ Détails
+                  </button>
+                  <button class="btn-edit" title="Modifier le litige">
+                    📝 Modifier
+                  </button>
+                </div>
+              </td>
+            </tr>
+          </tbody>
+        </table>
+        
+        <div *ngIf="litigesAcquereur.length === 0" class="no-data-content">
+          <div class="no-data-icon">📭</div>
+          <p><strong>Aucun litige signalé par votre banque.</strong></p>
+          <small>Les transactions que vous signalez apparaîtront ici.</small>
+        </div>
+      </div>
+    </div>
+    <!-- ========== ONGLET CHARGEBACK ========== -->
+    <div *ngIf="activeTab === 'chargeback'" class="chargeback-section">
+      
+      <!-- HEADER SECTION -->
+      <div class="chargeback-header">
+        <h3>💳 Gestion des Chargebacks</h3>
+        <div class="page-description">
+          <div class="description-icon">💳</div>
+          <div class="description-text">
+            <strong>Module Chargeback</strong> - Gérez les demandes de chargeback selon les procédures bancaires.
+            <br>
+            <small>Initiez, suivez et gérez les chargebacks pour les transactions litigieuses où votre banque est émettrice.</small>
+          </div>
+        </div>
+      </div>
+
+      <!-- LOADER CHARGEBACKS -->
+      <div *ngIf="isLoadingChargebacks" class="loader">
+        <div class="spinner"></div>
+        <p>Chargement des chargebacks...</p>
+      </div>
+
+      <!-- SECTION PRINCIPALE CHARGEBACKS -->
+      <div *ngIf="!isLoadingChargebacks">
+        
+        <!-- 4 CARTES STATISTIQUES CHARGEBACK -->
+        <div class="chargeback-stats-grid">
+          <div class="chargeback-stat-card total">
+            <div class="stat-icon">💳</div>
+            <div class="stat-content">
+              <div class="stat-value">{{ chargebackStats?.total || 0 }}</div>
+              <div class="stat-label">Total Chargebacks</div>
+              <div class="stat-sublabel">Toutes phases confondues</div>
+            </div>
+            <div class="stat-indicator"></div>
+          </div>
+
+          <div class="chargeback-stat-card in-progress">
+            <div class="stat-icon">⏳</div>
+            <div class="stat-content">
+              <div class="stat-value">{{ chargebackStats?.enCours || 0 }}</div>
+              <div class="stat-label">En Cours</div>
+              <div class="stat-sublabel">Nécessitent une action</div>
+            </div>
+            <div class="stat-indicator"></div>
+          </div>
+
+          <div class="chargeback-stat-card finalized">
+            <div class="stat-icon">✅</div>
+            <div class="stat-content">
+              <div class="stat-value">{{ chargebackStats?.finalises || 0 }}</div>
+              <div class="stat-label">Finalisés</div>
+              <div class="stat-sublabel">Processus terminés</div>
+            </div>
+            <div class="stat-indicator"></div>
+          </div>
+
+          <div class="chargeback-stat-card urgent">
+            <div class="stat-icon urgent-icon">⚠️</div>
+            <div class="stat-content">
+              <div class="stat-value">{{ chargebackStats?.urgents || 0 }}</div>
+              <div class="stat-label">Urgents</div>
+              <div class="stat-sublabel">Deadline < 3 jours</div>
+            </div>
+            <div class="stat-indicator urgent-indicator"></div>
+          </div>
+        </div>
+
+        <!-- MONTANT TOTAL SECTION -->
+        <div class="chargeback-amount-section" *ngIf="chargebackStats?.montantTotal">
+          <div class="amount-card">
+            <div class="amount-icon">💰</div>
+            <div class="amount-content">
+              <div class="amount-label">Montant Total Contesté</div>
+              <div class="amount-value">{{ formatChargebackCurrency(chargebackStats?.montantTotal || 0) }}</div>
+              <div class="amount-sublabel">Tous chargebacks confondus</div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FILTRES AVANCÉS CHARGEBACK -->
+        <!-- ✅ NOUVEAU : NAVIGATION ENTRE ÉMIS ET REÇUS -->
+<div class="chargeback-tabs" *ngIf="chargebacks.length > 0">
+  <div class="tabs-navigation">
+    <button class="tab-button" 
+            [class.active]="chargebackActiveSubTab === 'emis'"
+            (click)="setChargebackSubTab('emis')">
+      🏧 Chargebacks Émis ({{ chargebacksEmis.length }})
+      <small>Vous êtes émetteur</small>
+    </button>
+    <button class="tab-button" 
+            [class.active]="chargebackActiveSubTab === 'recus'"
+            (click)="setChargebackSubTab('recus')">
+      🏪 Chargebacks Reçus ({{ chargebacksRecus.length }})
+      <small>Vous êtes acquéreur</small>
+    </button>
+  </div>
+</div>
+
+<!-- FILTRES AVANCÉS CHARGEBACK ÉMIS -->
+<div class="chargeback-filters" *ngIf="chargebackActiveSubTab === 'emis' && chargebacksEmis.length > 0">
+  <h4>🔍 Filtres Chargebacks Émis</h4>
+  
+  <div class="filters-grid">
+    <!-- Recherche textuelle -->
+    <div class="filter-group">
+      <label>🔍 Recherche</label>
+      <input type="text" 
+             [(ngModel)]="chargebackFiltersEmis.texteRecherche" 
+             (ngModelChange)="filterChargebacksEmis()" 
+             placeholder="Référence, montant, description..." 
+             class="filter-input">
+    </div>
+
+    <!-- Filtre phase -->
+    <div class="filter-group">
+      <label>📊 Phase</label>
+      <select [(ngModel)]="chargebackFiltersEmis.phase" 
+              (change)="filterChargebacksEmis()" 
+              class="filter-select">
+        <option value="">Toutes les phases</option>
+        <option value="CHARGEBACK_INITIAL">🔵 Chargeback Initial</option>
+        <option value="REPRESENTATION">🟡 Représentation</option>
+        <option value="PRE_ARBITRAGE">🟠 Pré-Arbitrage</option>
+        <option value="ARBITRAGE">🔴 Arbitrage</option>
+        <option value="FINALISE">✅ Finalisé</option>
+      </select>
+    </div>
+
+    <!-- Filtre urgent -->
+    <div class="filter-group">
+      <label class="checkbox-label">
+        <input type="checkbox" 
+               [(ngModel)]="chargebackFiltersEmis.urgent" 
+               (change)="filterChargebacksEmis()" 
+               class="filter-checkbox">
+        ⚠️ Urgents uniquement
+      </label>
+    </div>
+
+    <!-- Actions filtres -->
+    <div class="filter-actions">
+      <button (click)="clearChargebackFiltersEmis()" class="btn-clear-filters">
+        🗑️ Effacer
+      </button>
+    </div>
+  </div>
+</div>
+
+<!-- FILTRES AVANCÉS CHARGEBACK REÇUS -->
+<div class="chargeback-filters" *ngIf="chargebackActiveSubTab === 'recus' && chargebacksRecus.length > 0">
+  <h4>🔍 Filtres Chargebacks Reçus</h4>
+  
+  <div class="filters-grid">
+    <!-- Recherche textuelle -->
+    <div class="filter-group">
+      <label>🔍 Recherche</label>
+      <input type="text" 
+             [(ngModel)]="chargebackFiltersRecus.texteRecherche" 
+             (ngModelChange)="filterChargebacksRecus()" 
+             placeholder="Référence, montant, description..." 
+             class="filter-input">
+    </div>
+
+    <!-- Filtre phase -->
+    <div class="filter-group">
+      <label>📊 Phase</label>
+      <select [(ngModel)]="chargebackFiltersRecus.phase" 
+              (change)="filterChargebacksRecus()" 
+              class="filter-select">
+        <option value="">Toutes les phases</option>
+        <option value="CHARGEBACK_INITIAL">🔵 Chargeback Initial</option>
+        <option value="REPRESENTATION">🟡 Représentation</option>
+        <option value="PRE_ARBITRAGE">🟠 Pré-Arbitrage</option>
+        <option value="ARBITRAGE">🔴 Arbitrage</option>
+        <option value="FINALISE">✅ Finalisé</option>
+      </select>
+    </div>
+
+    <!-- Filtre urgent -->
+    <div class="filter-group">
+      <label class="checkbox-label">
+        <input type="checkbox" 
+               [(ngModel)]="chargebackFiltersRecus.urgent" 
+               (change)="filterChargebacksRecus()" 
+               class="filter-checkbox">
+        ⚠️ Urgents uniquement
+      </label>
+    </div>
+
+    <!-- Actions filtres -->
+    <div class="filter-actions">
+      <button (click)="clearChargebackFiltersRecus()" class="btn-clear-filters">
+        🗑️ Effacer
+      </button>
+    </div>
+  </div>
+</div>
+
+        <!-- TABLE CHARGEBACKS -->
+        <!-- =============================================== -->
+<!-- 🏧 TABLE CHARGEBACKS ÉMIS (VOUS ÊTES ÉMETTEUR) -->
+<!-- =============================================== -->
+<div class="chargeback-table-container" *ngIf="chargebackActiveSubTab === 'emis' && chargebacksEmis.length > 0">
+  <h4>🏧 Chargebacks Émis ({{ filteredChargebacksEmis.length }})</h4>
+  <p class="subsection-description">Vous êtes la <strong>banque émettrice</strong> - Actions disponibles : Second Presentment, Arbitrage, Annulation</p>
+  
+  <div class="table-responsive">
+    <table class="chargeback-table emis-table">
+      <thead>
+        <tr>
+          <th>Réf Transaction</th>
+          <th>Banque Acquéreuse</th>
+          <th>Montant Contesté</th>
+          <th>Phase Actuelle</th>
+          <th>Deadline</th>
+          <th>Créé le</th>
+          <th>Actions Émetteur</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let cb of paginatedChargebacksEmis" 
+            [class.urgent-row]="isChargebackUrgent(cb)"
+            [class.finalized-row]="cb.phaseActuelle === 'FINALISE'"
+            class="emis-row">
+          
+          <!-- Référence Transaction -->
+          <td data-label="Réf Transaction">
+            <div class="transaction-ref">
+              <strong>{{ cb.transaction?.reference || 'N/A' }}</strong>
+              <small class="chargeback-id">CB #{{ cb.id }}</small>
+            </div>
+          </td>
+
+          <!-- Banque Acquéreuse -->
+          <td data-label="Banque Acquéreuse">
+            <div class="bank-info">
+              <strong>{{ cb.transaction?.banqueAcquereuse?.nom || 'N/A' }}</strong>
+              <small>🏪 Doit répondre</small>
+            </div>
+          </td>
+
+          <!-- Montant Contesté -->
+          <td data-label="Montant">
+            <div class="amount-cell">
+              <span class="amount-value">{{ formatChargebackCurrency(cb.montantConteste) }}</span>
+            </div>
+          </td>
+
+          <!-- Phase Actuelle -->
+          <td data-label="Phase">
+            <span class="phase-badge emis-phase" 
+                  [class]="'phase-' + (cb.phaseActuelle || '').toLowerCase().replace('_', '-')">
+              {{ getPhaseLabel(cb.phaseActuelle) }}
+            </span>
+          </td>
+
+          <!-- Deadline -->
+          <td data-label="Deadline">
+            <div class="deadline-cell">
+              <span class="deadline-date">{{ formatChargebackDate(cb.deadlineActuelle) }}</span>
+              <div class="deadline-countdown" 
+                   [class.urgent-countdown]="getJoursRestants(cb.deadlineActuelle) <= 3">
+                <small>{{ getJoursRestants(cb.deadlineActuelle || '') }} jour(s)</small>
               </div>
-            </td>
-            
-            <td data-label="Date">
-              {{ formatDate(lr.dateCreation) }}
-            </td>
-            
-            <td data-label="Description">
-              <div class="description-cell">
-                {{ lr.description || 'Aucune description' }}
-              </div>
-            </td>
-            
-            <td data-label="Statut">
-              <span [class]="'status-' + (lr.statut || '').toLowerCase()">
-                {{ lr.statut || 'NOUVEAU' }}
-              </span>
-            </td>
-            
-            <!-- ✅ MODIFIÉ : Changement du bouton Détails -->
-            <td data-label="Action">
-              <button class="btn-respond" title="Répondre au litige (Représentation)">
-                💬 Contester
-              </button>
-              <button 
-                class="btn-details" 
-                (click)="openLitigeDetails(lr.id)"
-                title="Voir tous les détails du litige avec heure de création">
+            </div>
+          </td>
+
+          <!-- Créé le -->
+          <td data-label="Créé le">
+            <div class="created-date">
+              <span>{{ formatChargebackDate(cb.dateCreation) }}</span>
+              <small>Par: {{ nomEmploye }}</small>
+            </div>
+          </td>
+
+          <!-- Actions Émetteur -->
+          <td data-label="Actions">
+            <div class="action-buttons">
+              
+              <!-- Voir détails -->
+              <button class="btn-action btn-view" 
+                      (click)="openHistoryModal(cb)"
+                      title="Voir les détails complets du chargeback">
                 👁️ Détails
               </button>
-            </td>
-          </tr>
-        </tbody>
-      </table>
 
-      <!-- MESSAGE SI AUCUN LITIGE REÇU -->
-      <div *ngIf="litigesRecus.length === 0" class="no-data-content">
-        <div class="no-data-icon">✅</div>
-        <p><strong>Aucun litige reçu d'autres banques.</strong></p>
-        <small>Excellente nouvelle ! Aucune autre banque n'a signalé de problème avec vos transactions.</small>
+              <!-- Second Presentment (Émetteur seulement) -->
+              <button *ngIf="canSecondPresentment(cb)" 
+                      class="btn-action btn-second-presentment" 
+                      (click)="openSecondPresentmentModal(cb)"
+                      title="Second presentment">
+                ⚡ Second Presentment
+              </button>
+
+              <!-- Arbitrage (Émetteur seulement) -->
+              <button *ngIf="canDemanderArbitrage(cb)" 
+                      class="btn-action btn-arbitrage" 
+                      (click)="openArbitrageModal(cb)"
+                      title="Demander arbitrage">
+                ⚖️ Arbitrage
+              </button>
+
+              <!-- Annuler (Émetteur seulement) -->
+              <button *ngIf="canAnnuler(cb)" 
+                      class="btn-action btn-cancel" 
+                      (click)="openCancellationModal(cb)"
+                      title="Annuler le chargeback">
+                🚫 Annuler
+              </button>
+
+              <!-- Upload justificatifs -->
+              <button *ngIf="cb.phaseActuelle !== 'FINALISE'" 
+                      class="btn-action btn-upload" 
+                      (click)="openJustificatifsModal(cb)"
+                      title="Ajouter des justificatifs">
+                📎 Fichiers
+              </button>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Ligne vide si aucun résultat -->
+        <tr *ngIf="paginatedChargebacksEmis.length === 0" class="no-data-row">
+          <td colspan="7">
+            <div class="no-data-content">
+              <div class="no-data-icon">🔍</div>
+              <p><strong>Aucun chargeback émis trouvé avec ces critères.</strong></p>
+              <button (click)="clearChargebackFiltersEmis()" class="btn-clear-inline">
+                Effacer les filtres
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- =============================================== -->
+<!-- 🏪 TABLE CHARGEBACKS REÇUS (VOUS ÊTES ACQUÉREUR) -->
+<!-- =============================================== -->
+<div class="chargeback-table-container" *ngIf="chargebackActiveSubTab === 'recus' && chargebacksRecus.length > 0">
+  <h4>🏪 Chargebacks Reçus ({{ filteredChargebacksRecus.length }})</h4>
+  <p class="subsection-description">Vous êtes la <strong>banque acquéreuse</strong> - Actions disponibles : Représentation, Acceptation, Contestation</p>
+  
+  <div class="table-responsive">
+    <table class="chargeback-table recus-table">
+      <thead>
+        <tr>
+          <th>Réf Transaction</th>
+          <th>Banque Émettrice</th>
+          <th>Montant Contesté</th>
+          <th>Phase Actuelle</th>
+          <th>Deadline</th>
+          <th>Reçu le</th>
+          <th>Actions Acquéreur</th>
+        </tr>
+      </thead>
+      <tbody>
+        <tr *ngFor="let cb of paginatedChargebacksRecus" 
+            [class.urgent-row]="isChargebackUrgent(cb)"
+            [class.finalized-row]="cb.phaseActuelle === 'FINALISE'"
+            class="recus-row">
+          
+          <!-- Référence Transaction -->
+          <td data-label="Réf Transaction">
+            <div class="transaction-ref">
+              <strong>{{ cb.transaction?.reference || 'N/A' }}</strong>
+              <small class="chargeback-id">CB #{{ cb.id }}</small>
+            </div>
+          </td>
+
+          <!-- Banque Émettrice -->
+          <td data-label="Banque Émettrice">
+            <div class="bank-info">
+              <strong>{{ cb.transaction?.banqueEmettrice?.nom || 'N/A' }}</strong>
+              <small>🏧 A initié le chargeback</small>
+            </div>
+          </td>
+
+          <!-- Montant Contesté -->
+          <td data-label="Montant">
+            <div class="amount-cell">
+              <span class="amount-value">{{ formatChargebackCurrency(cb.montantConteste) }}</span>
+            </div>
+          </td>
+
+          <!-- Phase Actuelle -->
+          <td data-label="Phase">
+            <span class="phase-badge recus-phase" 
+                  [class]="'phase-' + (cb.phaseActuelle || '').toLowerCase().replace('_', '-')">
+              {{ getPhaseLabel(cb.phaseActuelle) }}
+            </span>
+          </td>
+
+          <!-- Deadline -->
+          <td data-label="Deadline">
+            <div class="deadline-cell">
+              <span class="deadline-date">{{ formatChargebackDate(cb.deadlineActuelle) }}</span>
+              <div class="deadline-countdown" 
+                   [class.urgent-countdown]="getJoursRestants(cb.deadlineActuelle) <= 3">
+                <small>{{ getJoursRestants(cb.deadlineActuelle || '') }} jour(s)</small>
+              </div>
+            </div>
+          </td>
+
+          <!-- Reçu le -->
+          <td data-label="Reçu le">
+            <div class="received-date">
+              <span>{{ formatChargebackDate(cb.dateCreation) }}</span>
+            </div>
+          </td>
+
+          <!-- Actions Acquéreur -->
+          <td data-label="Actions">
+            <div class="action-buttons">
+              
+              <!-- Voir détails -->
+              <button class="btn-action btn-view" 
+                      (click)="openHistoryModal(cb)"
+                      title="Voir les détails complets du chargeback">
+                👁️ Détails
+              </button>
+
+              <!-- Représentation (Acquéreur seulement) -->
+              <button *ngIf="canRepresenter(cb)" 
+                      class="btn-action btn-represent" 
+                      (click)="openRepresentationModal(cb)"
+                      title="Traiter la représentation">
+                📝 Représenter
+              </button>
+
+              <!-- Upload justificatifs -->
+              <button *ngIf="cb.phaseActuelle !== 'FINALISE'" 
+                      class="btn-action btn-upload" 
+                      (click)="openJustificatifsModal(cb)"
+                      title="Ajouter des justificatifs">
+                📎 Fichiers
+              </button>
+            </div>
+          </td>
+        </tr>
+
+        <!-- Ligne vide si aucun résultat -->
+        <tr *ngIf="paginatedChargebacksRecus.length === 0" class="no-data-row">
+          <td colspan="7">
+            <div class="no-data-content">
+              <div class="no-data-icon">🔍</div>
+              <p><strong>Aucun chargeback reçu trouvé avec ces critères.</strong></p>
+              <button (click)="clearChargebackFiltersRecus()" class="btn-clear-inline">
+                Effacer les filtres
+              </button>
+            </div>
+          </td>
+        </tr>
+      </tbody>
+    </table>
+  </div>
+</div>
+
+<!-- MESSAGE SI AUCUN CHARGEBACK -->
+<div *ngIf="chargebackActiveSubTab === 'emis' && chargebacksEmis.length === 0" class="no-chargeback-content">
+  <div class="no-data-icon">💳</div>
+  <p><strong>Aucun chargeback émis pour le moment.</strong></p>
+  <p>Les chargebacks que vous initiez apparaîtront ici.</p>
+</div>
+
+<div *ngIf="chargebackActiveSubTab === 'recus' && chargebacksRecus.length === 0" class="no-chargeback-content">
+  <div class="no-data-icon">🏪</div>
+  <p><strong>Aucun chargeback reçu pour le moment.</strong></p>
+  <p>Les chargebacks que les autres banques vous envoient apparaîtront ici.</p>
+</div>
+
+        <!-- PAGINATION CHARGEBACK -->
+        <div class="chargeback-pagination" *ngIf="chargebackTotalPages > 1">
+          <button (click)="goToChargebackPage(chargebackCurrentPage - 1)" 
+                  [disabled]="!canGoToChargebackPrevious" 
+                  class="pagination-btn">
+            ‹ Précédent
+          </button>
+          
+          <button *ngFor="let page of chargebackPaginationArray" 
+                  [class.active]="chargebackCurrentPage === page"
+                  (click)="goToChargebackPage(page)"
+                  class="pagination-btn">
+            {{ page }}
+          </button>
+          
+          <button (click)="goToChargebackPage(chargebackCurrentPage + 1)" 
+                  [disabled]="!canGoToChargebackNext" 
+                  class="pagination-btn">
+            Suivant ›
+          </button>
+        </div>
+
+        <!-- INFO PAGINATION CHARGEBACK -->
+        <div class="chargeback-pagination-info" *ngIf="filteredChargebacks.length > 0">
+          Affichage de {{ (chargebackCurrentPage - 1) * chargebackItemsPerPage + 1 }} à 
+          {{ getChargebackMaxDisplayed() }} 
+          sur {{ filteredChargebacks.length }} chargebacks
+        </div>
+
+        <!-- MESSAGE SI AUCUN CHARGEBACK -->
+        <div *ngIf="chargebacks.length === 0" class="no-chargeback-content">
+          <div class="no-data-icon">💳</div>
+          <p><strong>Aucun chargeback initié pour le moment.</strong></p>
+          <p>Les chargebacks que vous initiez pour les transactions litigieuses apparaîtront ici.</p>
+          <div class="chargeback-info">
+            <h4>Pour initier un chargeback :</h4>
+            <ol>
+              <li>Allez dans l'onglet "📊 Transactions"</li>
+              <li>Identifiez une transaction litigieuse où votre banque est <strong>émettrice</strong></li>
+              <li>Cliquez sur le bouton "💳 Chargeback" dans les actions</li>
+              <li>Remplissez le formulaire d'initiation</li>
+            </ol>
+          </div>
+        </div>
+
       </div>
     </div>
 
@@ -492,6 +1113,14 @@
           </div>
         </div>
         
+        <div class="summary-card chargeback-summary">
+          <div class="summary-icon">💳</div>
+          <div class="summary-content">
+            <div class="summary-value">{{ chargebacks.length || 0 }}</div>
+            <div class="summary-label">Chargebacks</div>
+          </div>
+        </div>
+        
         <div class="summary-card">
           <div class="summary-icon">🔔</div>
           <div class="summary-content">
@@ -502,27 +1131,22 @@
       </div>
     </div>
   </main>
-
-  <!-- ✅ MODAL DÉTAILS LITIGE -->
+  <!-- MODAL DÉTAILS LITIGE -->
   <div class="modal-overlay" *ngIf="showDetailsModal" (click)="closeLitigeDetails()">
     <div class="modal-details" (click)="$event.stopPropagation()">
       
-      <!-- Header du modal -->
       <div class="modal-header">
         <h3>🔍 Détails complets du litige</h3>
         <button class="modal-close" (click)="closeLitigeDetails()">✕</button>
       </div>
 
-      <!-- Contenu du modal -->
       <div class="modal-body">
         
-        <!-- Loader -->
         <div *ngIf="isLoadingDetails" class="modal-loader">
           <div class="spinner"></div>
           <p>Chargement des détails...</p>
         </div>
 
-        <!-- Erreur -->
         <div *ngIf="detailsError" class="modal-error">
           <div class="error-icon">⚠️</div>
           <p>{{ detailsError }}</p>
@@ -531,10 +1155,8 @@
           </button>
         </div>
 
-        <!-- Détails du litige -->
         <div *ngIf="selectedLitigeDetails && !isLoadingDetails" class="details-content">
           
-          <!-- Informations principales -->
           <div class="details-section">
             <h4>📋 Informations du litige</h4>
             <div class="details-grid">
@@ -563,7 +1185,6 @@
             </div>
           </div>
 
-          <!-- ✅ DATE/HEURE COMPLÈTE (comme demandé) -->
           <div class="details-section">
             <h4>⏰ Informations temporelles</h4>
             <div class="details-grid">
@@ -582,7 +1203,6 @@
             </div>
           </div>
 
-          <!-- Informations banque et utilisateur -->
           <div class="details-section">
             <h4>🏦 Origine du litige</h4>
             <div class="details-grid">
@@ -601,7 +1221,6 @@
             </div>
           </div>
 
-          <!-- Détails de la transaction -->
           <div class="details-section" *ngIf="selectedLitigeDetails.transaction">
             <h4>💳 Détails de la transaction associée</h4>
             <div class="transaction-details">
@@ -624,7 +1243,6 @@
                 </div>
               </div>
 
-              <!-- Informations bancaires de la transaction -->
               <div class="bank-details" *ngIf="selectedLitigeDetails.transaction.banqueEmettrice || selectedLitigeDetails.transaction.banqueAcquereuse">
                 <div class="bank-item" *ngIf="selectedLitigeDetails.transaction.banqueEmettrice">
                   <h5>🏧 Banque Émettrice</h5>
@@ -638,7 +1256,6 @@
                 </div>
               </div>
 
-              <!-- Données SATIM si disponibles -->
               <div class="satim-details" *ngIf="selectedLitigeDetails.transaction.satimData">
                 <h5>📡 Données SATIM</h5>
                 <div class="details-grid satim-grid">
@@ -658,7 +1275,6 @@
         </div>
       </div>
 
-      <!-- Footer du modal -->
       <div class="modal-footer">
         <button class="btn-secondary" (click)="closeLitigeDetails()">
           ✕ Fermer
@@ -674,26 +1290,22 @@
     </div>
   </div>
 
-  <!-- ✅ MODAL DÉTAILS TRANSACTION -->
+  <!-- MODAL DÉTAILS TRANSACTION -->
   <div class="modal-overlay" *ngIf="showTransactionDetailsModal" (click)="closeTransactionDetails()">
     <div class="modal-details" (click)="$event.stopPropagation()">
       
-      <!-- Header du modal -->
       <div class="modal-header">
         <h3>📄 Détails complets de la transaction</h3>
         <button class="modal-close" (click)="closeTransactionDetails()">✕</button>
       </div>
 
-      <!-- Contenu du modal -->
       <div class="modal-body">
         
-        <!-- Loader -->
         <div *ngIf="isLoadingTransactionDetails" class="modal-loader">
           <div class="spinner"></div>
           <p>Chargement des détails de la transaction...</p>
         </div>
 
-        <!-- Erreur -->
         <div *ngIf="transactionDetailsError" class="modal-error">
           <div class="error-icon">⚠️</div>
           <p>{{ transactionDetailsError }}</p>
@@ -702,10 +1314,8 @@
           </button>
         </div>
 
-        <!-- Détails de la transaction -->
         <div *ngIf="selectedTransactionDetails && !isLoadingTransactionDetails" class="details-content">
           
-          <!-- Informations principales -->
           <div class="details-section">
             <h4>💳 Informations de la transaction</h4>
             <div class="details-grid">
@@ -723,45 +1333,19 @@
               </div>
               <div class="detail-item">
                 <span class="detail-label">Type :</span>
-                <span class="detail-value">
-                  {{ getTransactionTypeIcon(selectedTransactionDetails.type) }} {{ selectedTransactionDetails.type }}
-                </span>
+                <span class="detail-value">{{ selectedTransactionDetails.type }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">Statut :</span>
-                <span class="detail-value status-badge" 
-                      [class]="getTransactionStatutClass(selectedTransactionDetails.statut)">
-                  {{ selectedTransactionDetails.statut }}
-                </span>
+                <span class="detail-value status-badge">{{ selectedTransactionDetails.statut }}</span>
               </div>
               <div class="detail-item">
-                <span class="detail-label">Priorité :</span>
-                <span class="detail-value priority-badge" 
-                      [class]="getTransactionPriorityClass(selectedTransactionDetails.priorite)">
-                  {{ selectedTransactionDetails.priorite }}
-                </span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Informations temporelles -->
-          <div class="details-section">
-            <h4>📅 Informations temporelles</h4>
-            <div class="details-grid">
-              <div class="detail-item">
-                <span class="detail-label">Date de transaction :</span>
+                <span class="detail-label">Date transaction :</span>
                 <span class="detail-value">{{ formatDateOnly(selectedTransactionDetails.dateTransaction) }}</span>
               </div>
-              <div class="detail-item">
-                <span class="detail-label">Âge de la transaction :</span>
-                <span class="detail-value">
-                  {{ formatDureeDepuisCreationJours(selectedTransactionDetails.dureeDepuisCreationJours) }}
-                </span>
-              </div>
             </div>
           </div>
 
-          <!-- Informations bancaires -->
           <div class="details-section">
             <h4>🏦 Informations bancaires</h4>
             <div class="bank-details">
@@ -769,18 +1353,15 @@
                 <h5>🏧 Banque Émettrice</h5>
                 <p><strong>{{ selectedTransactionDetails.banqueEmettrice.nom }}</strong></p>
                 <small>Code: {{ selectedTransactionDetails.banqueEmettrice.code }}</small>
-                <small>Type: {{ selectedTransactionDetails.banqueEmettrice.type }}</small>
               </div>
               <div class="bank-item" *ngIf="selectedTransactionDetails.banqueAcquereuse">
                 <h5>🏪 Banque Acquéreuse</h5>
                 <p><strong>{{ selectedTransactionDetails.banqueAcquereuse.nom }}</strong></p>
                 <small>Code: {{ selectedTransactionDetails.banqueAcquereuse.code }}</small>
-                <small>Type: {{ selectedTransactionDetails.banqueAcquereuse.type }}</small>
               </div>
             </div>
           </div>
 
-          <!-- Données SATIM -->
           <div class="details-section" *ngIf="selectedTransactionDetails.satimData">
             <h4>📡 Données SATIM</h4>
             <div class="satim-details">
@@ -790,37 +1371,13 @@
                   <span class="detail-value">{{ selectedTransactionDetails.satimData.strCode }}</span>
                 </div>
                 <div class="detail-item">
-                  <span class="detail-label">Code Réconciliation :</span>
-                  <span class="detail-value">{{ selectedTransactionDetails.satimData.strRecoCode }}</span>
-                </div>
-                <div class="detail-item">
                   <span class="detail-label">Terminal :</span>
                   <span class="detail-value">{{ selectedTransactionDetails.satimData.strTermIden }}</span>
                 </div>
-                <div class="detail-item">
-                  <span class="detail-label">Code Opération :</span>
-                  <span class="detail-value">{{ selectedTransactionDetails.satimData.strOperCode }}</span>
-                </div>
               </div>
             </div>
           </div>
 
-          <!-- Données META -->
-          <div class="details-section" *ngIf="selectedTransactionDetails.metaData">
-            <h4>🔗 Métadonnées</h4>
-            <div class="details-grid">
-              <div class="detail-item">
-                <span class="detail-label">META ID :</span>
-                <span class="detail-value">{{ selectedTransactionDetails.metaData.id }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Code META :</span>
-                <span class="detail-value">{{ selectedTransactionDetails.metaData.strCode }}</span>
-              </div>
-            </div>
-          </div>
-
-          <!-- Litige associé -->
           <div class="details-section" *ngIf="selectedTransactionDetails.litige">
             <h4>🚩 Litige associé</h4>
             <div class="details-grid">
@@ -831,10 +1388,6 @@
               <div class="detail-item">
                 <span class="detail-label">Type de litige :</span>
                 <span class="detail-value">{{ selectedTransactionDetails.litige.type }}</span>
-              </div>
-              <div class="detail-item">
-                <span class="detail-label">Statut du litige :</span>
-                <span class="detail-value">{{ selectedTransactionDetails.litige.statut }}</span>
               </div>
               <div class="detail-item">
                 <span class="detail-label">Banque déclarante :</span>
@@ -850,13 +1403,766 @@
         </div>
       </div>
 
-      <!-- Footer du modal -->
       <div class="modal-footer">
         <button class="btn-secondary" (click)="closeTransactionDetails()">
           ✕ Fermer
         </button>
       </div>
 
+    </div>
+  </div>
+  <!-- MODAL INITIATION CHARGEBACK -->
+  <div class="modal-overlay" *ngIf="showInitiationChargebackModal" (click)="closeChargebackModal()">
+    <div class="modal-chargeback" (click)="$event.stopPropagation()">
+      
+      <!-- HEADER MODAL -->
+      <div class="modal-header-chargeback">
+        <div class="modal-title-section">
+          <h3>💳 Initier un Chargeback</h3>
+          <p class="modal-subtitle">
+            Transaction: <strong>{{ selectedTransactionForChargeback?.reference }}</strong>
+          </p>
+        </div>
+        <button class="modal-close-btn" (click)="closeChargebackModal()">✕</button>
+      </div>
+
+      <!-- BODY MODAL -->
+      <div class="modal-body-chargeback">
+        
+        <!-- INFORMATIONS TRANSACTION -->
+        <div class="transaction-info-section">
+          <h4>📄 Informations de la transaction</h4>
+          <div class="transaction-summary">
+            <div class="info-grid">
+              <div class="info-item">
+                <span class="info-label">Référence:</span>
+                <span class="info-value">{{ selectedTransactionForChargeback?.reference }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Montant:</span>
+                <span class="info-value amount">{{ formatCurrency(selectedTransactionForChargeback?.montant) }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Date:</span>
+                <span class="info-value">{{ formatDate(selectedTransactionForChargeback?.dateTransaction) }}</span>
+              </div>
+              <div class="info-item">
+                <span class="info-label">Type:</span>
+                <span class="info-value">{{ selectedTransactionForChargeback?.type }}</span>
+              </div>
+            </div>
+            
+            <!-- Banques -->
+            <div class="banks-summary" *ngIf="selectedTransactionForChargeback">
+              <div class="bank-info">
+                <span class="bank-label">🏧 Banque Émettrice:</span>
+                <span class="bank-name">{{ selectedTransactionForChargeback.banqueEmettrice?.nom || 'N/A' }}</span>
+              </div>
+              <div class="bank-info">
+                <span class="bank-label">🏪 Banque Acquéreuse:</span>
+                <span class="bank-name">{{ selectedTransactionForChargeback.banqueAcquereuse?.nom || 'N/A' }}</span>
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- FORMULAIRE CHARGEBACK -->
+        <form class="chargeback-form" (ngSubmit)="initiateChargeback()">
+          
+          <!-- Motif obligatoire -->
+          <div class="form-group required">
+            <label for="motifChargeback">
+              📝 Motif du chargeback <span class="required-star">*</span>
+            </label>
+            <textarea id="motifChargeback"
+                      [(ngModel)]="chargebackForm.motifChargeback"
+                      name="motifChargeback"
+                      placeholder="Décrivez le motif du chargeback (minimum 10 caractères)..."
+                      class="form-textarea"
+                      rows="3"
+                      required
+                      minlength="10"></textarea>
+            <small class="form-help">
+              Minimum 10 caractères. Soyez précis et factuel.
+            </small>
+          </div>
+
+          <!-- Description complémentaire -->
+          <div class="form-group">
+            <label for="description">
+              📋 Description complémentaire
+            </label>
+            <textarea id="description"
+                      [(ngModel)]="chargebackForm.description"
+                      name="description"
+                      placeholder="Informations supplémentaires (optionnel)..."
+                      class="form-textarea"
+                      rows="2"></textarea>
+          </div>
+
+          <!-- Montant contesté -->
+          <div class="form-group required">
+            <label for="montantConteste">
+              💰 Montant contesté <span class="required-star">*</span>
+            </label>
+            <div class="amount-input-group">
+              <input type="number"
+                     id="montantConteste"
+                     [(ngModel)]="chargebackForm.montantConteste"
+                     name="montantConteste"
+                     placeholder="0.00"
+                     class="form-input amount-input"
+                     min="0.01"
+                     step="0.01"
+                     required>
+              <span class="currency-suffix">MAD</span>
+            </div>
+            <small class="form-help">
+              Montant maximum: {{ formatCurrency(selectedTransactionForChargeback?.montant) }}
+            </small>
+          </div>
+
+          <!-- Priorité -->
+          <div class="form-group">
+            <label for="priorite">
+              🎯 Priorité du chargeback
+            </label>
+            <select id="priorite"
+                    [(ngModel)]="chargebackForm.priorite"
+                    name="priorite"
+                    class="form-select">
+              <option value="NORMALE">🟢 Normale</option>
+              <option value="HAUTE">🟡 Haute</option>
+              <option value="URGENTE">🔴 Urgente</option>
+            </select>
+          </div>
+
+          <!-- Case urgente -->
+          <div class="form-group checkbox-group">
+            <label class="checkbox-label">
+              <input type="checkbox"
+                     [(ngModel)]="chargebackForm.demandeUrgente"
+                     name="demandeUrgente"
+                     class="form-checkbox">
+              ⚠️ Demande de traitement urgent
+            </label>
+            <small class="form-help checkbox-help">
+              Cochez si ce chargeback nécessite un traitement prioritaire
+            </small>
+          </div>
+
+          <!-- Upload justificatifs -->
+          <div class="form-group">
+            <label for="justificatifs">
+              📎 Justificatifs (optionnel)
+            </label>
+            <div class="file-upload-area">
+              <input type="file"
+                     id="justificatifs"
+                     (change)="onJustificatifsSelected($event)"
+                     class="file-input"
+                     multipleaccept=".pdf,.jpg,.jpeg,.png,.doc,.docx">
+              <div class="file-upload-display">
+                <div class="upload-icon">📎</div>
+                <div class="upload-text">
+                  <strong>Cliquez pour ajouter des fichiers</strong>
+                  <small>PDF, Images, Documents Word acceptés</small>
+                </div>
+              </div>
+            </div>
+            
+            <!-- Liste des fichiers sélectionnés -->
+            <div class="selected-files" *ngIf="chargebackForm.justificatifs.length > 0">
+              <h5>📂 Fichiers sélectionnés:</h5>
+              <div class="file-list">
+                <div *ngFor="let file of chargebackForm.justificatifs; let i = index" 
+                     class="file-item">
+                  <span class="file-icon">📄</span>
+                  <span class="file-name">{{ file.name }}</span>
+                  <span class="file-size">({{ (file.size / 1024).toFixed(1) }} KB)</span>
+                  <button type="button" 
+                          class="remove-file-btn"
+                          (click)="removeJustificatif(i)">✕</button>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- Commentaire client -->
+          <div class="form-group">
+            <label for="commentaireClient">
+              💬 Commentaire client
+            </label>
+            <textarea id="commentaireClient"
+                      [(ngModel)]="chargebackForm.commentaireClient"
+                      name="commentaireClient"
+                      placeholder="Commentaires ou observations du client (optionnel)..."
+                      class="form-textarea"
+                      rows="2"></textarea>
+          </div>
+
+        </form>
+
+        <!-- RÉCAPITULATIF -->
+        <div class="summary-section-modal">
+          <h4>📋 Récapitulatif</h4>
+          <div class="summary-grid-modal">
+            <div class="summary-item-modal">
+              <span class="summary-label-modal">Transaction:</span>
+              <span class="summary-value-modal">{{ selectedTransactionForChargeback?.reference }}</span>
+            </div>
+            <div class="summary-item-modal">
+              <span class="summary-label-modal">Montant contesté:</span>
+              <span class="summary-value-modal amount">{{ formatChargebackCurrency(chargebackForm.montantConteste) }}</span>
+            </div>
+            <div class="summary-item-modal">
+              <span class="summary-label-modal">Priorité:</span>
+              <span class="summary-value-modal priority" [class]="'priority-' + chargebackForm.priorite.toLowerCase()">
+                {{ chargebackForm.priorite }}
+              </span>
+            </div>
+            <div class="summary-item-modal" *ngIf="chargebackForm.justificatifs.length > 0">
+              <span class="summary-label-modal">Justificatifs:</span>
+              <span class="summary-value-modal">{{ chargebackForm.justificatifs.length }} fichier(s)</span>
+            </div>
+          </div>
+        </div>
+
+      </div>
+
+      <!-- FOOTER MODAL -->
+      <div class="modal-footer-chargeback">
+        <div class="footer-info">
+          <small>
+            ⚠️ Une fois initié, le chargeback suivra le processus réglementaire bancaire.
+          </small>
+        </div>
+        
+        <div class="footer-actions">
+          <button type="button" 
+                  class="btn-secondary" 
+                  (click)="closeChargebackModal()"
+                  [disabled]="isInitiatingChargeback">
+            ✕ Annuler
+          </button>
+          
+          <button type="button" 
+                  class="btn-primary chargeback-btn" 
+                  (click)="initiateChargeback()"
+                  [disabled]="isInitiatingChargeback || !isChargebackFormValid()">
+            <span *ngIf="!isInitiatingChargeback">💳 Initier Chargeback</span>
+            <span *ngIf="isInitiatingChargeback">⏳ Initiation en cours...</span>
+          </button>
+        </div>
+      </div>
+
+    </div>
+  </div>
+  <!-- MODAL REPRÉSENTATION -->
+  <div class="modal-overlay" *ngIf="showRepresentationModal">
+    <div class="modal-chargeback-action">
+      <div class="modal-header">
+        <h3>📝 Traiter la Représentation</h3>
+        <button (click)="closeRepresentationModal()">✕</button>
+      </div>
+      
+      <div class="modal-body">
+        <!-- Info chargeback -->
+        <div class="chargeback-summary">
+          <h4>💳 Chargeback #{{ selectedChargebackForAction?.id }}</h4>
+          <p>Transaction: {{ selectedChargebackForAction?.transaction?.reference }}</p>
+          <p>Montant: {{ formatChargebackCurrency(selectedChargebackForAction?.montantConteste) }}</p>
+        </div>
+        
+        <!-- Formulaire représentation -->
+        <form (ngSubmit)="processRepresentation()">
+          <!-- Type de réponse -->
+          <div class="form-group required">
+            <label>Type de réponse</label>
+            <select [(ngModel)]="representationForm.typeReponse" name="typeReponse">
+              <option value="ACCEPTATION_TOTALE">✅ Acceptation Totale</option>
+              <option value="ACCEPTATION_PARTIELLE">🟡 Acceptation Partielle</option>  
+              <option value="CONTESTATION">❌ Contestation</option>
+            </select>
+          </div>
+          
+          <!-- Montant accepté (si partielle) -->
+          <div class="form-group" *ngIf="representationForm.typeReponse === 'ACCEPTATION_PARTIELLE'">
+            <label>Montant accepté</label>
+            <input type="number" [(ngModel)]="representationForm.montantAccepte" name="montantAccepte">
+          </div>
+          
+          <!-- Réponse détaillée -->
+          <div class="form-group required">
+            <label>Réponse détaillée</label>
+            <textarea [(ngModel)]="representationForm.reponseDetaillee" 
+                      name="reponseDetaillee"
+                      placeholder="Décrivez votre position (min 20 caractères)..."
+                      rows="4" required minlength="20"></textarea>
+          </div>
+          
+          <!-- Arguments de défense -->
+          <div class="form-group">
+            <label>Arguments de défense</label>
+            <textarea [(ngModel)]="representationForm.argumentsDefense"
+                      name="argumentsDefense" 
+                      placeholder="Arguments juridiques et techniques..."
+                      rows="3"></textarea>
+          </div>
+          
+          <!-- Upload justificatifs -->
+          <div class="form-group">
+            <label>Justificatifs de défense</label>
+            <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                   (change)="onJustificatifsSelectedForPhase($event, 'REPRESENTATION')">
+          </div>
+          
+          <!-- Délai supplémentaire -->
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" [(ngModel)]="representationForm.demandeDelaiSupplementaire" name="demandeDelai">
+              Demander un délai supplémentaire
+            </label>
+            <input *ngIf="representationForm.demandeDelaiSupplementaire"
+                   type="number" [(ngModel)]="representationForm.joursDelaiSupplementaire"
+                   placeholder="Nombre de jours" min="1" max="30">
+          </div>
+        </form>
+      </div>
+      
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" (click)="closeRepresentationModal()">Annuler</button>
+        <button type="button" class="btn-primary" 
+                (click)="processRepresentation()"
+                [disabled]="!isFormValid('representation') || isProcessingRepresentation">
+          <span *ngIf="!isProcessingRepresentation">📝 Envoyer Représentation</span>
+          <span *ngIf="isProcessingRepresentation">⏳ Traitement...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL SECOND PRESENTMENT -->
+  <div class="modal-overlay" *ngIf="showSecondPresentmentModal">
+    <div class="modal-chargeback-action">
+      <div class="modal-header">
+        <h3>⚡ Second Presentment</h3>
+        <button (click)="closeSecondPresentmentModal()">✕</button>
+      </div>
+      
+      <div class="modal-body">
+        <!-- Info chargeback -->
+        <div class="chargeback-summary">
+          <h4>💳 Chargeback #{{ selectedChargebackForAction?.id }}</h4>
+          <p>Transaction: {{ selectedChargebackForAction?.transaction?.reference }}</p>
+        </div>
+        
+        <!-- Formulaire second presentment -->
+        <form (ngSubmit)="processSecondPresentment()">
+          <!-- Motif de rejet -->
+          <div class="form-group required">
+            <label>Motif de rejet</label>
+            <textarea [(ngModel)]="secondPresentmentForm.motifRejet" 
+                      name="motifRejet"
+                      placeholder="Motif du rejet (min 20 caractères)..."
+                      rows="3" required minlength="20"></textarea>
+          </div>
+          
+          <!-- Réfutation détaillée -->
+          <div class="form-group required">
+            <label>Réfutation détaillée</label>
+            <textarea [(ngModel)]="secondPresentmentForm.refutationDetaillee"
+                      name="refutationDetaillee" 
+                      placeholder="Réfutation complète (min 50 caractères)..."
+                      rows="4" required minlength="50"></textarea>
+          </div>
+          
+          <!-- Arguments supplémentaires -->
+          <div class="form-group">
+            <label>Arguments supplémentaires</label>
+            <textarea [(ngModel)]="secondPresentmentForm.argumentsSupplementaires"
+                      name="argumentsSupplementaires"
+                      placeholder="Arguments complémentaires..."
+                      rows="3"></textarea>
+          </div>
+          
+          <!-- Upload nouvelles preuves -->
+          <div class="form-group">
+            <label>Nouvelles preuves</label>
+            <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                   (change)="onJustificatifsSelectedForPhase($event, 'SECOND_PRESENTMENT')">
+          </div>
+          
+          <!-- Analyse technique -->
+          <div class="form-group">
+            <label>Analyse technique</label>
+            <textarea [(ngModel)]="secondPresentmentForm.analyseTechnique"
+                      name="analyseTechnique"
+                      placeholder="Analyse technique détaillée..."
+                      rows="3"></textarea>
+          </div>
+          
+          <!-- Demande arbitrage -->
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" [(ngModel)]="secondPresentmentForm.demandeArbitrage" name="demandeArbitrage">
+              Demander l'arbitrage si rejeté
+            </label>
+          </div>
+        </form>
+      </div>
+      
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" (click)="closeSecondPresentmentModal()">Annuler</button>
+        <button type="button" class="btn-primary" 
+                (click)="processSecondPresentment()"
+                [disabled]="!isFormValid('secondPresentment') || isProcessingSecondPresentment">
+          <span *ngIf="!isProcessingSecondPresentment">⚡ Envoyer Second Presentment</span>
+          <span *ngIf="isProcessingSecondPresentment">⏳ Traitement...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL ARBITRAGE -->
+  <div class="modal-overlay" *ngIf="showArbitrageModal">
+    <div class="modal-chargeback-action">
+      <div class="modal-header">
+        <h3>⚖️ Demande d'Arbitrage</h3>
+        <button (click)="closeArbitrageModal()">✕</button>
+      </div>
+      
+      <div class="modal-body">
+        <!-- Info chargeback -->
+        <div class="chargeback-summary">
+          <h4>💳 Chargeback #{{ selectedChargebackForAction?.id }}</h4>
+          <p>Transaction: {{ selectedChargebackForAction?.transaction?.reference }}</p>
+        </div>
+        
+        <!-- Formulaire arbitrage -->
+        <form (ngSubmit)="processArbitrage()">
+          <!-- Justification demande -->
+          <div class="form-group required">
+            <label>Justification de la demande</label>
+            <textarea [(ngModel)]="arbitrageForm.justificationDemande" 
+                      name="justificationDemande"
+                      placeholder="Justification complète (min 50 caractères)..."
+                      rows="4" required minlength="50"></textarea>
+          </div>
+          
+          <!-- Position de la banque -->
+          <div class="form-group required">
+            <label>Position de la banque</label>
+            <textarea [(ngModel)]="arbitrageForm.positionBanque"
+                      name="positionBanque" 
+                      placeholder="Position officielle (min 30 caractères)..."
+                      rows="3" required minlength="30"></textarea>
+          </div>
+          
+          <!-- Arguments clés -->
+          <div class="form-group">
+            <label>Arguments clés</label>
+            <textarea placeholder="Arguments principaux séparés par des retours à la ligne..."
+                      rows="3"></textarea>
+          </div>
+          
+          <!-- Upload documents finaux -->
+          <div class="form-group">
+            <label>Documents finaux</label>
+            <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                   (change)="onJustificatifsSelectedForPhase($event, 'ARBITRAGE')">
+          </div>
+          
+          <!-- Coût estimé -->
+          <div class="form-group">
+            <label>Coût estimé</label>
+            <input type="number" [(ngModel)]="arbitrageForm.coutEstime" name="coutEstime"
+                   placeholder="Coût en MAD" min="0">
+          </div>
+          
+          <!-- Priorité -->
+          <div class="form-group">
+            <label>Priorité</label>
+            <select [(ngModel)]="arbitrageForm.priorite" name="priorite">
+              <option value="NORMALE">🟢 Normale</option>
+              <option value="HAUTE">🟡 Haute</option>
+              <option value="URGENTE">🔴 Urgente</option>
+            </select>
+          </div>
+          
+          <!-- Demande urgente -->
+          <div class="form-group">
+            <label class="checkbox-label">
+              <input type="checkbox" [(ngModel)]="arbitrageForm.demandeUrgente" name="demandeUrgente">
+              Demande urgente
+            </label>
+          </div>
+        </form>
+      </div>
+      
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" (click)="closeArbitrageModal()">Annuler</button>
+        <button type="button" class="btn-primary" 
+                (click)="processArbitrage()"
+                [disabled]="!isFormValid('arbitrage') || isProcessingArbitrage">
+          <span *ngIf="!isProcessingArbitrage">⚖️ Demander Arbitrage</span>
+          <span *ngIf="isProcessingArbitrage">⏳ Traitement...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL DÉCISION ARBITRAGE -->
+  <div class="modal-overlay" *ngIf="showDecisionArbitrageModal">
+    <div class="modal-chargeback-action">
+      <div class="modal-header">
+        <h3>🏛️ Décision d'Arbitrage</h3>
+        <button (click)="closeDecisionArbitrageModal()">✕</button>
+      </div>
+      
+      <div class="modal-body">
+        <!-- Info chargeback -->
+        <div class="chargeback-summary">
+          <h4>💳 Chargeback #{{ selectedChargebackForAction?.id }}</h4>
+          <p>Transaction: {{ selectedChargebackForAction?.transaction?.reference }}</p>
+        </div>
+        
+        <!-- Formulaire décision -->
+        <form (ngSubmit)="processDecisionArbitrage()">
+          <!-- Décision -->
+          <div class="form-group required">
+            <label>Décision</label>
+            <select [(ngModel)]="decisionArbitrageForm.decision" name="decision">
+              <option value="FAVORABLE_EMETTEUR">✅ Favorable à l'Émetteur</option>
+              <option value="FAVORABLE_ACQUEREUR">✅ Favorable à l'Acquéreur</option>
+            </select>
+          </div>
+          
+          <!-- Motifs décision -->
+          <div class="form-group required">
+            <label>Motifs de la décision</label>
+            <textarea [(ngModel)]="decisionArbitrageForm.motifsDecision" 
+                      name="motifsDecision"
+                      placeholder="Motifs détaillés (min 20 caractères)..."
+                      rows="4" required minlength="20"></textarea>
+          </div>
+          
+          <!-- Répartition frais -->
+          <div class="form-group">
+            <label>Répartition des frais</label>
+            <select [(ngModel)]="decisionArbitrageForm.repartitionFrais" name="repartitionFrais">
+              <option value="PERDANT">💸 À la charge du perdant</option>
+              <option value="EMETTEUR">🏧 À la charge de l'émetteur</option>
+              <option value="ACQUEREUR">🏪 À la charge de l'acquéreur</option>
+              <option value="PARTAGE">⚖️ Partagés équitablement</option>
+            </select>
+          </div>
+        </form>
+      </div>
+      
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" (click)="closeDecisionArbitrageModal()">Annuler</button>
+        <button type="button" class="btn-primary" 
+                (click)="processDecisionArbitrage()"
+                [disabled]="!isFormValid('decisionArbitrage') || isProcessingDecision">
+          <span *ngIf="!isProcessingDecision">🏛️ Rendre Décision</span>
+          <span *ngIf="isProcessingDecision">⏳ Traitement...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+
+  <!-- MODAL ANNULATION -->
+  <div class="modal-overlay" *ngIf="showCancellationModal">
+    <div class="modal-chargeback-action">
+      <div class="modal-header">
+        <h3>🚫 Annuler le Chargeback</h3>
+        <button (click)="closeCancellationModal()">✕</button>
+      </div>
+      
+      <div class="modal-body">
+        <!-- Info chargeback -->
+        <div class="chargeback-summary">
+          <h4>💳 Chargeback #{{ selectedChargebackForAction?.id }}</h4>
+          <p>Transaction: {{ selectedChargebackForAction?.transaction?.reference }}</p>
+        </div>
+        
+        <!-- Formulaire annulation -->
+        <form (ngSubmit)="processCancellation()">
+          <!-- Motif annulation -->
+          <div class="form-group required">
+            <label>Motif d'annulation</label>
+            <textarea [(ngModel)]="cancellationForm.motifAnnulation" 
+                      name="motifAnnulation"
+                      placeholder="Motif d'annulation (min 10 caractères)..."
+                      rows="3" required minlength="10"></textarea>
+          </div>
+          
+          <!-- Impact client -->
+          <div class="form-group">
+            <label>Impact sur le client</label>
+            <textarea [(ngModel)]="cancellationForm.impactClient"
+                      name="impactClient"
+                      placeholder="Impact sur le client..."
+                      rows="2"></textarea>
+          </div>
+          
+          <!-- Confirmation -->
+          <div class="form-group">
+            <div class="warning-box">
+              ⚠️ <strong>Attention :</strong> L'annulation du chargeback est définitive et ne peut pas être annulée.
+            </div>
+          </div>
+        </form>
+      </div>
+      
+      <div class="modal-footer">
+        <button type="button" class="btn-secondary" (click)="closeCancellationModal()">Annuler</button>
+        <button type="button" class="btn-danger" 
+                (click)="processCancellation()"
+                [disabled]="!isFormValid('cancellation') || isProcessingCancellation">
+          <span *ngIf="!isProcessingCancellation">🚫 Confirmer Annulation</span>
+          <span *ngIf="isProcessingCancellation">⏳ Traitement...</span>
+        </button>
+      </div>
+    </div>
+  </div>
+  <!-- MODAL HISTORIQUE -->
+  <div class="modal-overlay" *ngIf="showHistoryModal">
+  <div class="modal-history">
+    <div class="modal-header">
+      <h3>📋 Historique Complet</h3>
+      <button (click)="closeHistoryModal()">✕</button>
+    </div>
+    
+    <div class="modal-body">
+      <div class="chargeback-summary">
+        <h4>💳 Chargeback #{{ selectedChargebackForAction?.id }}</h4>
+        <p>Transaction: {{ selectedChargebackForAction?.transaction?.reference }}</p>
+        <p>Phase actuelle: {{ getPhaseLabel(selectedChargebackForAction?.phaseActuelle || '') }}</p>
+      </div>
+      
+      <div class="timeline" *ngIf="!isLoadingHistory">
+        <div class="timeline-item" *ngFor="let echange of chargebackHistory">
+          <div class="timeline-marker" [class]="'marker-' + (echange.phaseLitige || 'UNKNOWN')">
+            <i class="icon">{{ getPhaseIcon(echange.phaseLitige || '') }}</i>
+          </div>
+          <div class="timeline-content">
+            <div class="timeline-header">
+              <span class="timeline-phase">{{ getPhaseLabel(echange.phaseLitige || '') }}</span>
+              <span class="timeline-date">{{ formatDateTime(echange.dateEchange || '') }}</span>
+            </div>
+            <div class="timeline-body">
+              <p>{{ echange.contenu }}</p>
+              <small>
+                Par: {{ getAuteurName(echange) }} 
+                ({{ getInstitutionName(echange) }})
+              </small>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="loading" *ngIf="isLoadingHistory">
+        <div class="spinner"></div>
+        <p>Chargement de l'historique...</p>
+      </div>
+      
+      <div *ngIf="!isLoadingHistory && chargebackHistory.length === 0" class="no-history">
+        <p>Aucun historique disponible pour ce chargeback.</p>
+      </div>
+    </div>
+    
+    <div class="modal-footer">
+      <button class="btn-secondary" (click)="closeHistoryModal()">Fermer</button>
+    </div>
+  </div>
+</div>
+
+  <!-- MODAL JUSTIFICATIFS -->
+  <div class="modal-overlay" *ngIf="showJustificatifsModal">
+    <div class="modal-justificatifs">
+      <div class="modal-header">
+        <h3>📎 Gestion des Justificatifs</h3>
+        <button (click)="closeJustificatifsModal()">✕</button>
+      </div>
+      
+      <div class="modal-body">
+        <div class="chargeback-summary">
+          <h4>💳 Chargeback #{{ selectedChargebackForAction?.id }}</h4>
+          <p>Transaction: {{ selectedChargebackForAction?.transaction?.reference }}</p>
+        </div>
+        
+        <!-- Liste des justificatifs existants -->
+        <div class="existing-justificatifs">
+          <h4>📂 Justificatifs existants</h4>
+          
+          <div *ngIf="isLoadingJustificatifs" class="loading">
+            <div class="spinner"></div>
+            <p>Chargement des justificatifs...</p>
+          </div>
+          
+          <div *ngIf="!isLoadingJustificatifs && selectedChargebackJustificatifs.length === 0" class="no-justificatifs">
+            <p>Aucun justificatif pour ce chargeback.</p>
+          </div>
+          
+          <div class="justificatifs-list" *ngIf="!isLoadingJustificatifs && selectedChargebackJustificatifs.length > 0">
+            <div *ngFor="let justificatif of selectedChargebackJustificatifs" class="justificatif-item">
+              <div class="justificatif-icon">📄</div>
+              <div class="justificatif-info">
+  <strong>{{ justificatif.nomFichier }}</strong> <!-- ✅ CORRIGÉ -->
+  <small>Phase: {{ getPhaseLabel(justificatif.phaseLitige || '') }}</small> <!-- ✅ CORRIGÉ -->
+  <small>Taille: {{ formatFileSize(justificatif.tailleFichier) }}</small> <!-- ✅ CORRIGÉ -->
+</div>
+              <div class="justificatif-actions">
+                <button class="btn-download" (click)="downloadJustificatif(justificatif)">
+                  📥 Télécharger
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <!-- Upload nouveaux justificatifs -->
+        <div class="new-justificatifs" *ngIf="selectedChargebackForAction?.phaseActuelle !== 'FINALISE'">
+          <h4>📎 Ajouter des justificatifs</h4>
+          
+          <div class="file-upload-area">
+            <input type="file" multiple accept=".pdf,.jpg,.jpeg,.png,.doc,.docx"
+                   (change)="onJustificatifsSelectedForPhase($event, 'JUSTIFICATIFS_MODAL')"
+                   class="file-input">
+            <div class="file-upload-display">
+              <div class="upload-icon">📎</div>
+              <div class="upload-text">
+                <strong>Cliquez pour ajouter des fichiers</strong>
+                <small>PDF, Images, Documents Word acceptés</small>
+              </div>
+            </div>
+          </div>
+          
+          <!-- Liste des nouveaux fichiers -->
+          <div class="new-files" *ngIf="newJustificatifs.length > 0">
+            <h5>📂 Nouveaux fichiers:</h5>
+            <div class="file-list">
+              <div *ngFor="let file of newJustificatifs; let i = index" class="file-item">
+                <span class="file-icon">📄</span>
+                <span class="file-name">{{ file.name }}</span>
+                <span class="file-size">({{ (file.size / 1024).toFixed(1) }} KB)</span>
+                <button type="button" class="remove-file-btn" (click)="newJustificatifs.splice(i, 1)">✕</button>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      <div class="modal-footer">
+        <button class="btn-secondary" (click)="closeJustificatifsModal()">Fermer</button>
+        <button *ngIf="newJustificatifs.length > 0" 
+                class="btn-primary" 
+                title="Fonctionnalité à implémenter">
+          📎 Sauvegarder Justificatifs
+        </button>
+      </div>
     </div>
   </div>
 

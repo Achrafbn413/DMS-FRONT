@@ -1,0 +1,82 @@
+<div class="institutions-container">
+  <!-- Header avec navigation -->
+  <div class="header">
+    <div class="header-left">
+      <button class="back-btn" (click)="goBack()">
+        <i class="fas fa-arrow-left"></i>
+        Retour
+      </button>
+    </div>
+    <div class="header-center">
+      <h1>🏦 Mes Institutions</h1>
+    </div>
+    <div class="header-right">
+      <button class="logout-btn" (click)="logout()">
+        <i class="fas fa-sign-out-alt"></i>
+        Déconnexion
+      </button>
+    </div>
+  </div>
+
+  <!-- Contenu principal -->
+  <div class="content">
+    <div class="description">
+      <p>Sélectionnez une institution bancaire pour vous connecter et accéder à vos services.</p>
+    </div>
+
+    <!-- État de chargement -->
+    <div class="loading" *ngIf="loading">
+      <div class="spinner"></div>
+      <p>Chargement des institutions...</p>
+    </div>
+
+    <!-- Message d'erreur -->
+    <div class="error-message" *ngIf="error">
+      <i class="fas fa-exclamation-triangle"></i>
+      <p>{{ error }}</p>
+      <button class="retry-btn" (click)="loadInstitutions()">
+        <i class="fas fa-redo"></i>
+        Réessayer
+      </button>
+    </div>
+
+    <!-- Liste des institutions -->
+    <div class="institutions-grid" *ngIf="!loading && !error">
+      <div 
+        class="institution-card" 
+        *ngFor="let institution of institutions"
+        (click)="onInstitutionClick(institution)"
+        [class.disabled]="!institution.enabled"
+      >
+        <div class="institution-logo">
+          <img 
+            [src]="getInstitutionLogo(institution.nom)" 
+            [alt]="institution.nom"
+            onerror="this.src='assets/images/default-bank.png'"
+          />
+        </div>
+        <div class="institution-info">
+          <h3>{{ institution.nom }}</h3>
+          <p class="institution-type">
+            <i class="fas fa-tag"></i>
+            {{ getTypeLabel(institution.type) }}
+          </p>
+          <div class="institution-status" [ngClass]="institution.enabled ? 'active' : 'inactive'">
+            <i [class]="institution.enabled ? 'fas fa-check-circle' : 'fas fa-times-circle'"></i>
+            {{ institution.enabled ? 'Disponible' : 'Indisponible' }}
+          </div>
+        </div>
+        <div class="institution-action">
+          <i class="fas fa-arrow-right"></i>
+        </div>
+      </div>
+    </div>
+
+    <!-- Message si aucune institution -->
+    <div class="no-institutions" *ngIf="!loading && !error && institutions.length === 0">
+      <i class="fas fa-university"></i>
+      <h3>Aucune institution disponible</h3>
+      <p>Il n'y a actuellement aucune institution bancaire active.</p>
+    </div>
+  </div>
+</div>
