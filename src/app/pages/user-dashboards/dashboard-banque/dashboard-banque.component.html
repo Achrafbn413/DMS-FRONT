@@ -728,7 +728,7 @@
     </div>
 
     <!-- Filtre phase -->
-    <div class="filter-group">
+    <div class="filter-group">title="Voir les détails complets du chargeback">
       <label>📊 Phase</label>
       <select [(ngModel)]="chargebackFiltersRecus.phase" 
               (change)="filterChargebacksRecus()" 
@@ -995,6 +995,14 @@
                       title="Traiter la représentation">
                 📝 Représenter
               </button>
+
+              <!-- Arbitrage - À AJOUTER ICI -->
+<button *ngIf="canDemanderArbitrage(cb)" 
+        class="btn-action btn-arbitrage" 
+        (click)="openArbitrageModal(cb)"
+        title="Demander arbitrage">
+  ⚖️ Arbitrage
+</button>
 
               <!-- Upload justificatifs -->
               <button *ngIf="cb.phaseActuelle !== 'FINALISE'" 
@@ -1658,28 +1666,113 @@
 
     </div>
   </div>
+  
   <!-- MODAL REPRÉSENTATION -->
-  <div class="modal-overlay" *ngIf="showRepresentationModal">
-    <div class="modal-chargeback-action">
-      <div class="modal-header">
-        <h3>📝 Traiter la Représentation</h3>
-        <button (click)="closeRepresentationModal()">✕</button>
-      </div>
+  <!-- MODAL REPRÉSENTATION ENRICHI -->
+<div class="modal-overlay" *ngIf="showRepresentationModal">
+  <div class="modal-chargeback-action modal-large">
+    <div class="modal-header">
+      <h3>📝 Traiter la Représentation</h3>
+      <button (click)="closeRepresentationModal()">✕</button>
+    </div>
+    
+    <div class="modal-body">
       
-      <div class="modal-body">
-        <!-- Info chargeback -->
-        <div class="chargeback-summary">
-          <h4>💳 Chargeback #{{ selectedChargebackForAction?.id }}</h4>
-          <p>Transaction: {{ selectedChargebackForAction?.transaction?.reference }}</p>
-          <p>Montant: {{ formatChargebackCurrency(selectedChargebackForAction?.montantConteste) }}</p>
+      <!-- SECTION 1: DÉTAILS DU CHARGEBACK -->
+      <div class="chargeback-details-section">
+        <h4>💳 Détails du Chargeback</h4>
+        <div class="details-grid">
+          <div class="detail-card">
+            <div class="detail-label">ID Chargeback:</div>
+            <div class="detail-value">#{{ selectedChargebackForAction?.id }}</div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-label">Phase Actuelle:</div>
+            <div class="detail-value phase-badge">{{ getPhaseLabel(selectedChargebackForAction?.phaseActuelle) }}</div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-label">Montant Contesté:</div>
+            <div class="detail-value amount">{{ formatChargebackCurrency(selectedChargebackForAction?.montantConteste) }}</div>
+          </div>
+          <div class="detail-card">
+            <div class="detail-label">Deadline:</div>
+            <div class="detail-value deadline" [class.urgent]="selectedChargebackForAction && isChargebackUrgent(selectedChargebackForAction)"></div>
+              {{ formatChargebackDate(selectedChargebackForAction?.deadlineActuelle) }}
+              
+            </div>
+          </div>
         </div>
+      </div>
+
+      <!-- SECTION 2: DÉTAILS DE LA TRANSACTION -->
+      <div class="transaction-details-section">
+        <h4>💰 Détails de la Transaction</h4>
+        <div class="transaction-card">
+          <div class="transaction-header">
+            <span class="transaction-ref">{{ selectedChargebackForAction?.transaction?.reference }}</span>
+            <span class="transaction-amount">{{ formatChargebackCurrency(selectedChargebackForAction?.transaction?.montant) }}</span>
+          </div>
+          <div class="transaction-banks">
+            <div class="bank-role emetteur">
+              <strong>🏧 Banque Émettrice:</strong>
+              {{ selectedChargebackForAction?.transaction?.banqueEmettrice?.nom }}
+            </div>
+            <div class="bank-role acquereur">
+              <strong>🏪 Banque Acquéreuse (VOUS):</strong>
+              {{ selectedChargebackForAction?.transaction?.banqueAcquereuse?.nom }}
+            </div>
+          </div>
+          <div class="transaction-meta">
+            <span>Date: {{ formatChargebackDate(selectedChargebackForAction?.transaction?.dateTransaction) }}</span>
+            <span>Type: {{ selectedChargebackForAction?.transaction?.type }}</span>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 3: CONTEXTE DU LITIGE -->
+      <div class="litige-context-section">
+        <h4>⚖️ Contexte du Litige</h4>
+        <div class="litige-info">
+          <div class="litige-item">
+            <strong>ID Litige:</strong> #{{ selectedChargebackForAction?.litigeId }}
+          </div>
+          <div class="litige-item">
+            <strong>Motif Chargeback:</strong>
+            <div class="motif-text">{{ selectedChargebackForAction?.motifChargeback }}</div>
+          </div>
+          <div class="litige-item">
+            <strong>Description:</strong>
+            <div class="description-text">{{ selectedChargebackForAction?.motifChargeback || 'Aucune description supplémentaire' }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 4: MINI HISTORIQUE -->
+      <div class="mini-history-section">
+        <h4>📋 Progression du Chargeback</h4>
+        <div class="stepper-mini">
+          <div *ngFor="let step of (selectedChargebackForAction ? getStepperSteps(selectedChargebackForAction) : [])" 
+     class="step-item"
+     [class.completed]="step.completed"
+     [class.active]="step.active">
+            <div class="step-icon">{{ step.icon }}</div>
+            <div class="step-label">{{ step.label }}</div>
+          </div>
+        </div>
+      </div>
+
+      <!-- SECTION 5: FORMULAIRE DE REPRÉSENTATION -->
+      <div class="representation-form-section">
+        <h4>📝 Votre Réponse de Représentation</h4>
+        
+        <!-- Reste du formulaire existant... -->
         
         <!-- Formulaire représentation -->
-        <form (ngSubmit)="processRepresentation()">
+        <div>
           <!-- Type de réponse -->
           <div class="form-group required">
             <label>Type de réponse</label>
-            <select [(ngModel)]="representationForm.typeReponse" name="typeReponse">
+            <select [(ngModel)]="representationForm.typeReponse" [ngModelOptions]="{standalone: true}">
               <option value="ACCEPTATION_TOTALE">✅ Acceptation Totale</option>
               <option value="ACCEPTATION_PARTIELLE">🟡 Acceptation Partielle</option>  
               <option value="CONTESTATION">❌ Contestation</option>
@@ -1689,23 +1782,30 @@
           <!-- Montant accepté (si partielle) -->
           <div class="form-group" *ngIf="representationForm.typeReponse === 'ACCEPTATION_PARTIELLE'">
             <label>Montant accepté</label>
-            <input type="number" [(ngModel)]="representationForm.montantAccepte" name="montantAccepte">
+            <input type="number" [(ngModel)]="representationForm.montantAccepte" [ngModelOptions]="{standalone: true}">
           </div>
           
           <!-- Réponse détaillée -->
           <div class="form-group required">
             <label>Réponse détaillée</label>
             <textarea [(ngModel)]="representationForm.reponseDetaillee" 
-                      name="reponseDetaillee"
-                      placeholder="Décrivez votre position (min 20 caractères)..."
-                      rows="4" required minlength="20"></textarea>
+          [ngModelOptions]="{standalone: true}"
+          placeholder="Décrivez votre position (min 20 caractères)..."
+          rows="4" 
+          required 
+          minlength="20"
+          (input)="onReponseDetailChange($event)"></textarea>
+<small class="form-help">
+  Caractères: {{ representationForm.reponseDetaillee.length || 0 }}/20 minimum
+  - Valide: {{ isFormValid('representation') ? 'OUI' : 'NON' }}
+</small>
           </div>
           
           <!-- Arguments de défense -->
           <div class="form-group">
             <label>Arguments de défense</label>
             <textarea [(ngModel)]="representationForm.argumentsDefense"
-                      name="argumentsDefense" 
+                      [ngModelOptions]="{standalone: true}"
                       placeholder="Arguments juridiques et techniques..."
                       rows="3"></textarea>
           </div>
@@ -1720,28 +1820,35 @@
           <!-- Délai supplémentaire -->
           <div class="form-group">
             <label class="checkbox-label">
-              <input type="checkbox" [(ngModel)]="representationForm.demandeDelaiSupplementaire" name="demandeDelai">
+              <input type="checkbox" [(ngModel)]="representationForm.demandeDelaiSupplementaire" [ngModelOptions]="{standalone: true}">
               Demander un délai supplémentaire
             </label>
             <input *ngIf="representationForm.demandeDelaiSupplementaire"
-                   type="number" [(ngModel)]="representationForm.joursDelaiSupplementaire"
+                   type="number" [(ngModel)]="representationForm.joursDelaiSupplementaire" [ngModelOptions]="{standalone: true}"
                    placeholder="Nombre de jours" min="1" max="30">
           </div>
-        </form>
+        </div>
       </div>
       
       <div class="modal-footer">
-        <button type="button" class="btn-secondary" (click)="closeRepresentationModal()">Annuler</button>
-        <button type="button" class="btn-primary" 
-                (click)="processRepresentation()"
-                [disabled]="!isFormValid('representation') || isProcessingRepresentation">
+  <button type="button" class="btn-secondary" (click)="closeRepresentationModal()">Annuler</button>
+  
+  <!-- Bouton de debug temporaire -->
+  <button type="button" class="btn-warning" 
+          (click)="debugRepresentation()"
+          style="background: orange; color: white; margin-right: 10px;">
+    🔧 DEBUG
+  </button>
+  
+  <button type="button" class="btn-primary" 
+          (click)="processRepresentation()"
+          [disabled]="!isFormValid('representation') || isProcessingRepresentation">
           <span *ngIf="!isProcessingRepresentation">📝 Envoyer Représentation</span>
           <span *ngIf="isProcessingRepresentation">⏳ Traitement...</span>
         </button>
       </div>
     </div>
   </div>
-
   <!-- MODAL SECOND PRESENTMENT -->
   <div class="modal-overlay" *ngIf="showSecondPresentmentModal">
     <div class="modal-chargeback-action">

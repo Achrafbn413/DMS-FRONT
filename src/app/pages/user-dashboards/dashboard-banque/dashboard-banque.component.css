@@ -3382,3 +3382,618 @@ select:focus {
  text-overflow: ellipsis;
  white-space: nowrap;
 }
+
+/* ====================================================================
+✅ AMÉLIORATION DE LA TABLE DES TRANSACTIONS
+==================================================================== */
+
+/* Container de la table avec design moderne */
+.table-container {
+  background: white;
+  border-radius: 16px;
+  box-shadow: 0 8px 32px rgba(0, 0, 0, 0.1);
+  overflow: hidden;
+  margin-bottom: 30px;
+  border: 1px solid #e2e8f0;
+}
+
+.table-container h3 {
+  margin: 0;
+  padding: 25px 30px;
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  font-size: 1.4rem;
+  font-weight: 600;
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+/* Table des transactions améliorée */
+.transactions {
+  width: 100%;
+  border-collapse: separate;
+  border-spacing: 0;
+  font-size: 0.9rem;
+  background: white;
+}
+
+.transactions thead {
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+.transactions th {
+  padding: 18px 16px;
+  text-align: left;
+  font-weight: 700;
+  color: #1e293b;
+  font-size: 0.85rem;
+  text-transform: uppercase;
+  letter-spacing: 0.8px;
+  border-bottom: 2px solid #e2e8f0;
+  position: relative;
+  white-space: nowrap;
+}
+
+.transactions th:first-child {
+  padding-left: 24px;
+}
+
+.transactions th:last-child {
+  padding-right: 24px;
+}
+
+/* Effet hover sur les en-têtes */
+.transactions th:hover {
+  background: rgba(102, 126, 234, 0.05);
+  cursor: pointer;
+}
+
+/* Cellules du corps de table */
+.transactions td {
+  padding: 16px;
+  border-bottom: 1px solid #f1f5f9;
+  vertical-align: middle;
+  transition: all 0.2s ease;
+}
+
+.transactions td:first-child {
+  padding-left: 24px;
+}
+
+.transactions td:last-child {
+  padding-right: 24px;
+}
+
+/* Lignes avec hover amélioré */
+.transactions tbody tr {
+  transition: all 0.3s ease;
+  position: relative;
+}
+
+.transactions tbody tr:hover {
+  background: linear-gradient(135deg, #f8faff 0%, #f0f4ff 100%);
+  transform: translateY(-1px);
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.1);
+}
+
+/* Styles pour les références de transaction */
+.transaction-ref {
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+  font-weight: 600;
+  color: #1e293b;
+  background: #f8fafc;
+  padding: 6px 12px;
+  border-radius: 8px;
+  font-size: 0.85rem;
+  border: 1px solid #e2e8f0;
+}
+
+/* Montants avec style amélioré */
+.amount-cell {
+  font-weight: 700;
+  font-size: 1rem;
+  color: #059669;
+  font-family: 'Monaco', 'Menlo', 'Courier New', monospace;
+}
+
+.amount-cell.negative {
+  color: #dc2626;
+}
+
+/* Types de transaction */
+.transaction-type {
+  display: inline-block;
+  padding: 6px 14px;
+  border-radius: 20px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  border: 1px solid transparent;
+}
+
+.type-retrait {
+  background: linear-gradient(135deg, #fef3c7 0%, #fde68a 100%);
+  color: #92400e;
+  border-color: #f59e0b;
+}
+
+.type-virement {
+  background: linear-gradient(135deg, #dbeafe 0%, #bfdbfe 100%);
+  color: #1e40af;
+  border-color: #3b82f6;
+}
+
+.type-autre {
+  background: linear-gradient(135deg, #f3e8ff 0%, #e9d5ff 100%);
+  color: #7c3aed;
+  border-color: #8b5cf6;
+}
+
+/* Statuts améliorés */
+.status-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  padding: 8px 16px;
+  border-radius: 25px;
+  font-size: 0.8rem;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.5px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  transition: all 0.3s ease;
+}
+
+.status-badge:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
+}
+
+.status-normale {
+  background: linear-gradient(135deg, #d1fae5 0%, #a7f3d0 100%);
+  color: #065f46;
+  border: 1px solid #10b981;
+}
+
+.status-avec-litige {
+  background: linear-gradient(135deg, #fecaca 0%, #fca5a5 100%);
+  color: #7f1d1d;
+  border: 1px solid #ef4444;
+  animation: pulse-litige 2s infinite;
+}
+
+@keyframes pulse-litige {
+  0%, 100% { 
+    box-shadow: 0 2px 4px rgba(0, 0, 0, 0.1);
+  }
+  50% { 
+    box-shadow: 0 4px 12px rgba(239, 68, 68, 0.3);
+  }
+}
+
+.status-ouvert {
+  background: linear-gradient(135deg, #fed7aa 0%, #fdba74 100%);
+  color: #9a3412;
+  border: 1px solid #f97316;
+}
+
+.status-vu {
+  background: linear-gradient(135deg, #e5e7eb 0%, #d1d5db 100%);
+  color: #374151;
+  border: 1px solid #6b7280;
+}
+
+/* Colonnes spécialisées */
+.date-cell {
+  color: #6b7280;
+  font-weight: 500;
+  font-size: 0.9rem;
+}
+
+.bank-role-cell {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.role-badge {
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  text-transform: uppercase;
+}
+
+.role-acquéreur {
+  background: #dbeafe;
+  color: #1e40af;
+}
+
+.role-émettrice {
+  background: #fef3c7;
+  color: #92400e;
+}
+
+/* Section Actions - Organisation moderne */
+.actions-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  align-items: flex-start;
+  min-width: 180px;
+}
+
+.primary-actions {
+  display: flex;
+  gap: 6px;
+  flex-wrap: wrap;
+}
+
+.secondary-actions {
+  display: flex;
+  gap: 4px;
+  flex-wrap: wrap;
+}
+
+/* Boutons d'action redesignés */
+.btn-action {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 6px 12px;
+  border: none;
+  border-radius: 8px;
+  font-size: 0.75rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.3s cubic-bezier(0.4, 0, 0.2, 1);
+  text-decoration: none;
+  white-space: nowrap;
+  position: relative;
+  overflow: hidden;
+}
+
+.btn-action::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: -100%;
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(90deg, transparent, rgba(255, 255, 255, 0.2), transparent);
+  transition: left 0.5s ease;
+}
+
+.btn-action:hover::before {
+  left: 100%;
+}
+
+.btn-action:hover {
+  transform: translateY(-2px);
+  box-shadow: 0 8px 16px rgba(0, 0, 0, 0.2);
+}
+
+.btn-action:active {
+  transform: translateY(0);
+  transition: transform 0.1s ease;
+}
+
+/* Bouton Signaler */
+.btn-flag {
+  background: linear-gradient(135deg, #ef4444 0%, #dc2626 100%);
+  color: white;
+  box-shadow: 0 4px 8px rgba(239, 68, 68, 0.3);
+}
+
+.btn-flag:hover {
+  background: linear-gradient(135deg, #dc2626 0%, #b91c1c 100%);
+  box-shadow: 0 8px 16px rgba(239, 68, 68, 0.4);
+}
+
+.btn-flag:disabled {
+  background: linear-gradient(135deg, #9ca3af 0%, #6b7280 100%);
+  cursor: not-allowed;
+  transform: none;
+  box-shadow: none;
+}
+
+/* Bouton Détails */
+.btn-details {
+  background: linear-gradient(135deg, #3b82f6 0%, #2563eb 100%);
+  color: white;
+  box-shadow: 0 4px 8px rgba(59, 130, 246, 0.3);
+}
+
+.btn-details:hover {
+  background: linear-gradient(135deg, #2563eb 0%, #1d4ed8 100%);
+  box-shadow: 0 8px 16px rgba(59, 130, 246, 0.4);
+}
+
+/* Bouton Chargeback */
+.btn-chargeback {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+  box-shadow: 0 4px 8px rgba(139, 92, 246, 0.3);
+}
+
+.btn-chargeback:hover {
+  background: linear-gradient(135deg, #7c3aed 0%, #6d28d9 100%);
+  box-shadow: 0 8px 16px rgba(139, 92, 246, 0.4);
+}
+
+/* Bouton Voir (litiges) */
+.btn-view {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  box-shadow: 0 4px 8px rgba(16, 185, 129, 0.3);
+}
+
+.btn-view:hover {
+  background: linear-gradient(135deg, #059669 0%, #047857 100%);
+  box-shadow: 0 8px 16px rgba(16, 185, 129, 0.4);
+}
+
+/* Bouton Répondre */
+.btn-respond {
+  background: linear-gradient(135deg, #f59e0b 0%, #d97706 100%);
+  color: white;
+  box-shadow: 0 4px 8px rgba(245, 158, 11, 0.3);
+}
+
+.btn-respond:hover {
+  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
+  box-shadow: 0 8px 16px rgba(245, 158, 11, 0.4);
+}
+
+/* Indicateurs de statut */
+.flag-status {
+  background: linear-gradient(135deg, #10b981 0%, #059669 100%);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+}
+
+.chargeback-status {
+  background: linear-gradient(135deg, #8b5cf6 0%, #7c3aed 100%);
+  color: white;
+  padding: 4px 10px;
+  border-radius: 12px;
+  font-size: 0.7rem;
+  font-weight: 600;
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  animation: pulse-chargeback 2s infinite;
+}
+
+/* Informations contextuelles */
+.transaction-info {
+  display: flex;
+  flex-direction: column;
+  gap: 4px;
+}
+
+.transaction-info small {
+  color: #6b7280;
+  font-size: 0.75rem;
+  font-style: italic;
+}
+
+.bank-info {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.bank-info strong {
+  color: #1e293b;
+  font-size: 0.85rem;
+}
+
+.bank-info small {
+  color: #64748b;
+  font-size: 0.75rem;
+}
+
+/* Lignes spéciales */
+.highlighted {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.05) 0%, rgba(147, 197, 253, 0.1) 100%);
+  border-left: 4px solid #3b82f6;
+}
+
+.highlighted:hover {
+  background: linear-gradient(135deg, rgba(59, 130, 246, 0.08) 0%, rgba(147, 197, 253, 0.15) 100%);
+}
+
+.litige-row {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.05) 0%, rgba(252, 165, 165, 0.1) 100%);
+  border-left: 4px solid #ef4444;
+}
+
+.litige-row:hover {
+  background: linear-gradient(135deg, rgba(239, 68, 68, 0.08) 0%, rgba(252, 165, 165, 0.15) 100%);
+}
+
+.has-active-chargeback {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.05) 0%, rgba(196, 181, 253, 0.1) 100%);
+  border-left: 4px solid #8b5cf6;
+}
+
+.has-active-chargeback:hover {
+  background: linear-gradient(135deg, rgba(139, 92, 246, 0.08) 0%, rgba(196, 181, 253, 0.15) 100%);
+}
+
+/* Responsive design pour la table */
+@media (max-width: 1200px) {
+  .actions-cell {
+    min-width: 160px;
+  }
+  
+  .btn-action {
+    padding: 5px 10px;
+    font-size: 0.7rem;
+  }
+}
+
+@media (max-width: 768px) {
+  .transactions th,
+  .transactions td {
+    padding: 12px 8px;
+  }
+  
+  .actions-cell {
+    min-width: 140px;
+  }
+  
+  .primary-actions,
+  .secondary-actions {
+    flex-direction: column;
+    align-items: stretch;
+  }
+  
+  .btn-action {
+    width: 100%;
+    justify-content: center;
+    margin-bottom: 2px;
+  }
+}
+
+/* Animation d'apparition pour les lignes */
+.transactions tbody tr {
+  animation: fadeInTableRow 0.5s ease-out;
+  animation-fill-mode: both;
+}
+
+.transactions tbody tr:nth-child(1) { animation-delay: 0.1s; }
+.transactions tbody tr:nth-child(2) { animation-delay: 0.15s; }
+.transactions tbody tr:nth-child(3) { animation-delay: 0.2s; }
+.transactions tbody tr:nth-child(4) { animation-delay: 0.25s; }
+.transactions tbody tr:nth-child(5) { animation-delay: 0.3s; }
+
+@keyframes fadeInTableRow {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* Amélioration de la pagination */
+.pagination {
+  display: flex;
+  justify-content: center;
+  align-items: center;
+  gap: 8px;
+  padding: 24px;
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+  border-top: 1px solid #e2e8f0;
+}
+
+.pagination-btn {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 10px 16px;
+  border: 2px solid #e2e8f0;
+  background: white;
+  color: #64748b;
+  border-radius: 10px;
+  cursor: pointer;
+  transition: all 0.3s ease;
+  font-weight: 600;
+  font-size: 0.9rem;
+  min-width: 45px;
+  box-shadow: 0 2px 4px rgba(0, 0, 0, 0.05);
+}
+
+.pagination-btn:hover:not(:disabled) {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: #667eea;
+  transform: translateY(-2px);
+  box-shadow: 0 4px 8px rgba(102, 126, 234, 0.3);
+}
+
+.pagination-btn.active {
+  background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+  color: white;
+  border-color: #667eea;
+  box-shadow: 0 4px 12px rgba(102, 126, 234, 0.4);
+}
+
+.pagination-btn:disabled {
+  opacity: 0.4;
+  cursor: not-allowed;
+  background: #f8fafc;
+  transform: none;
+  box-shadow: none;
+}
+
+.pagination-info {
+  text-align: center;
+  padding: 16px 24px;
+  color: #64748b;
+  font-size: 0.9rem;
+  background: #f8fafc;
+  border-top: 1px solid #e2e8f0;
+  font-weight: 500;
+}
+
+/* Indicateurs visuels avancés */
+.urgency-indicator {
+  position: absolute;
+  left: 0;
+  top: 0;
+  bottom: 0;
+  width: 4px;
+  background: linear-gradient(180deg, #ef4444 0%, #dc2626 100%);
+  animation: pulse-urgent 2s infinite;
+}
+
+@keyframes pulse-urgent {
+  0%, 100% { opacity: 1; }
+  50% { opacity: 0.6; }
+}
+
+/* Tooltips pour boutons */
+.btn-action[title] {
+  position: relative;
+}
+
+.btn-action[title]:hover::after {
+  content: attr(title);
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  background: #1e293b;
+  color: white;
+  padding: 6px 10px;
+  border-radius: 6px;
+  font-size: 0.7rem;
+  white-space: nowrap;
+  z-index: 1000;
+  margin-bottom: 4px;
+  animation: fadeIn 0.3s ease;
+}
+
+.btn-action[title]:hover::before {
+  content: '';
+  position: absolute;
+  bottom: 100%;
+  left: 50%;
+  transform: translateX(-50%);
+  border: 4px solid transparent;
+  border-top-color: #1e293b;
+  z-index: 1000;
+}

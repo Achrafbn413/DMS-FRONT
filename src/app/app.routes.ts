@@ -50,6 +50,12 @@ export const routes: Routes = [
     loadComponent: () => import('./pages/transactions/admin-transactions.component').then(m => m.AdminTransactionsComponent),
     canActivate: [authGuard, roleGuard('ADMIN')]
   },
+  //ADMIN ARBITRAGE
+   {
+    path: 'admin/arbitrages',
+    loadComponent: () => import('./pages/admin-arbitrages/admin-arbitrages.component').then(m => m.AdminArbitragesComponent),
+    canActivate: [authGuard, roleGuard('ADMIN')]
+  },
 
   // 👤 USER ROUTES
   {

@@ -1,0 +1,517 @@
+<div class="admin-arbitrages-container">
+  <!-- Header -->
+  <div class="page-header">
+    <div class="header-content">
+      <h1>Gestion des Arbitrages</h1>
+      <button class="btn-refresh" (click)="refresh()" [disabled]="isLoading">
+        🔄 Actualiser
+      </button>
+    </div>
+  </div>
+
+  <!-- Dashboard Stats -->
+  <div class="dashboard-stats" *ngIf="dashboard">
+    <div class="stat-card">
+      <h3>{{ dashboard.totalArbitrages }}</h3>
+      <p>Total Arbitrages</p>
+    </div>
+    <div class="stat-card urgent">
+      <h3>{{ dashboard.arbitragesEnAttente }}</h3>
+      <p>En Attente</p>
+    </div>
+    <div class="stat-card active">
+      <h3>{{ dashboard.arbitragesEnCours }}</h3>
+      <p>En Cours</p>
+    </div>
+    <div class="stat-card completed">
+      <h3>{{ dashboard.arbitragesDecides }}</h3>
+      <p>Décidés</p>
+    </div>
+    <div class="stat-card warning">
+      <h3>{{ dashboard.arbitragesUrgents }}</h3>
+      <p>Urgents</p>
+    </div>
+  </div>
+
+  <!-- Alertes -->
+  <div class="alertes-section" *ngIf="dashboard && dashboard.alertes.length > 0">
+    <div class="alerte" *ngFor="let alerte of dashboard.alertes">
+      ⚠️ {{ alerte }}
+    </div>
+  </div>
+
+  <!-- Loading -->
+  <div class="loading" *ngIf="isLoading">
+    <div class="spinner"></div>
+    <p>Chargement des arbitrages...</p>
+  </div>
+
+  <!-- Error -->
+  <div class="error" *ngIf="error && !isLoading">
+    <p>❌ {{ error }}</p>
+    <button (click)="refresh()">Réessayer</button>
+  </div>
+
+  <!-- Liste des arbitrages en attente -->
+  <div class="arbitrages-section" *ngIf="!isLoading && !error">
+    <h2>Arbitrages en Attente de Décision</h2>
+    
+    <div class="arbitrages-grid" *ngIf="arbitragesEnAttente.length > 0">
+      <div class="arbitrage-card" 
+           *ngFor="let arbitrage of arbitragesEnAttente"
+           [class]="getUrgenceClass(arbitrage.urgence)"
+           (click)="consulterArbitrage(arbitrage)">
+        
+        <div class="card-header">
+          <span class="arbitrage-id">Arbitrage #{{ arbitrage.id }}</span>
+          <span class="urgence-badge" [class]="getUrgenceClass(arbitrage.urgence)">
+            {{ arbitrage.urgence }}
+          </span>
+        </div>
+
+        <div class="card-content">
+          <div class="transaction-info">
+            <strong>{{ arbitrage.transactionReference }}</strong>
+            <p>{{ formatMontant(arbitrage.montantConteste) }}</p>
+          </div>
+
+          <div class="banques-info">
+            <div class="banque emettrice">
+              <label>Émettrice:</label>
+              <span>{{ arbitrage.banqueEmettrice }}</span>
+            </div>
+            <div class="banque acquereuse">
+              <label>Acquéreuse:</label>
+              <span>{{ arbitrage.banqueAcquereuse }}</span>
+            </div>
+          </div>
+
+          <div class="motif">
+            <label>Motif:</label>
+            <p>{{ arbitrage.motifChargeback }}</p>
+          </div>
+
+          <div class="delai">
+            <label>En attente depuis:</label>
+            <span class="jours-attente">{{ arbitrage.joursAttente }} jour(s)</span>
+          </div>
+        </div>
+
+        <div class="card-actions">
+          <button class="btn-primary">
+            ⚖️ Examiner le dossier
+          </button>
+        </div>
+      </div>
+    </div>
+
+    <div class="empty-state" *ngIf="arbitragesEnAttente.length === 0">
+      <h3>✅ Aucun arbitrage en attente</h3>
+      <p>Tous les arbitrages ont été traités.</p>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de consultation détaillée -->
+<div class="modal-overlay" *ngIf="showDetailsModal" (click)="closeDetailsModal()">
+  <div class="modal-content-large" (click)="$event.stopPropagation()">
+    
+    <!-- Header du modal -->
+    <div class="modal-header">
+      <h2>Dossier d'Arbitrage #{{ selectedArbitrage?.id }}</h2>
+      <button class="close-btn" (click)="closeDetailsModal()">✕</button>
+    </div>
+
+    <!-- Navigation par onglets -->
+    <div class="tab-navigation">
+      <button class="tab-btn" 
+              [class.active]="activeTab === 'resume'"
+              (click)="setActiveTab('resume')">
+        📋 Résumé
+      </button>
+      <button class="tab-btn" 
+              [class.active]="activeTab === 'historique'"
+              (click)="setActiveTab('historique')">
+        📅 Historique
+      </button>
+      <button class="tab-btn" 
+              [class.active]="activeTab === 'justificatifs'"
+              (click)="setActiveTab('justificatifs')">
+        📎 Justificatifs
+      </button>
+      <button class="tab-btn" 
+              [class.active]="activeTab === 'decision'"
+              (click)="setActiveTab('decision')">
+        ⚖️ Décision
+      </button>
+    </div>
+
+    <!-- Loading du dossier -->
+    <div class="loading-details" *ngIf="isLoadingDetails">
+      <div class="spinner"></div>
+      <p>Chargement du dossier complet...</p>
+    </div>
+
+    <!-- Contenu des onglets -->
+    <div class="tab-content" *ngIf="!isLoadingDetails && dossierComplet">
+      
+      <!-- Onglet Résumé -->
+      <div class="tab-panel" *ngIf="activeTab === 'resume'">
+        <div class="resume-grid">
+          
+          <!-- Informations générales -->
+          <div class="info-section">
+            <h3>Informations Générales</h3>
+            <div class="info-grid">
+              <div class="info-item">
+                <label>ID Arbitrage:</label>
+                <span>#{{ dossierComplet.arbitrage.id }}</span>
+              </div>
+              <div class="info-item">
+                <label>Date de demande:</label>
+                <span>{{ formatDate(dossierComplet.arbitrage.dateDemande) }}</span>
+              </div>
+              <div class="info-item">
+                <label>Jours d'attente:</label>
+                <span class="highlight-warning">{{ dossierComplet.arbitrage.joursAttente }} jour(s)</span>
+              </div>
+              <div class="info-item">
+                <label>Urgence:</label>
+                <span class="urgence-badge" [class]="getUrgenceClass(dossierComplet.arbitrage.urgence)">
+                  {{ dossierComplet.arbitrage.urgence }}
+                </span>
+              </div>
+              <div class="info-item">
+                <label>Institution demandeuse:</label>
+                <span>{{ dossierComplet.arbitrage.institutionDemandeuse }}</span>
+              </div>
+              <div class="info-item">
+                <label>Coût d'arbitrage:</label>
+                <span class="highlight-amount">{{ formatMontant(dossierComplet.arbitrage.coutArbitrage) }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Transaction concernée -->
+          <div class="info-section">
+            <h3>Transaction Concernée</h3>
+            <div class="info-grid">
+              <div class="info-item">
+                <label>Référence:</label>
+                <span class="highlight-ref">{{ dossierComplet.transaction.reference }}</span>
+              </div>
+              <div class="info-item">
+                <label>Montant transaction:</label>
+                <span>{{ formatMontant(dossierComplet.transaction.montant) }}</span>
+              </div>
+              <div class="info-item">
+                <label>Montant contesté:</label>
+                <span class="highlight-amount">{{ formatMontant(dossierComplet.arbitrage.montantConteste) }}</span>
+              </div>
+              <div class="info-item">
+                <label>Date transaction:</label>
+                <span>{{ formatDate(dossierComplet.transaction.dateTransaction) }}</span>
+              </div>
+              <div class="info-item">
+                <label>Type:</label>
+                <span>{{ dossierComplet.transaction.type }}</span>
+              </div>
+            </div>
+          </div>
+
+          <!-- Banques impliquées -->
+          <div class="info-section">
+            <h3>Banques Impliquées</h3>
+            <div class="banques-details">
+              <div class="banque-card emettrice">
+                <h4>🏦 Banque Émettrice</h4>
+                <p><strong>{{ dossierComplet.banqueEmettrice.nom || 'Banque émettrice inconnue' }}</strong></p>
+                <p>ID: {{ dossierComplet.banqueEmettrice.id || 'N/A' }}</p>
+              </div>
+              <div class="vs-separator">VS</div>
+              <div class="banque-card acquereuse">
+                <h4>🏪 Banque Acquéreuse</h4>
+                <p><strong>{{ dossierComplet.banqueAcquereuse.nom || 'Banque acquéreuse inconnue' }}</strong></p>
+                <p>ID: {{ dossierComplet.banqueAcquereuse.id || 'N/A' }}</p>
+              </div>
+            </div>
+          </div>
+
+          <!-- Résumé du chargeback -->
+          <div class="info-section full-width">
+            <h3>Résumé du Chargeback</h3>
+            <div class="chargeback-timeline">
+              <div class="timeline-item">
+                <div class="timeline-marker initiation"></div>
+                <div class="timeline-content">
+                  <h4>Initiation du Chargeback</h4>
+                  <p><strong>Date:</strong> {{ formatDate(dossierComplet.chargeback.dateInitiation) }}</p>
+                  <p><strong>Motif:</strong> {{ dossierComplet.chargeback.motifInitial }}</p>
+                </div>
+              </div>
+              
+              <div class="timeline-item" *ngIf="dossierComplet.chargeback.dateRepresentation">
+                <div class="timeline-marker representation"></div>
+                <div class="timeline-content">
+                  <h4>Représentation</h4>
+                  <p><strong>Date:</strong> {{ formatDate(dossierComplet.chargeback.dateRepresentation) }}</p>
+                  <p>Arguments de défense présentés</p>
+                </div>
+              </div>
+              
+              <div class="timeline-item" *ngIf="dossierComplet.chargeback.dateSecondPresentment">
+                <div class="timeline-marker second-presentment"></div>
+                <div class="timeline-content">
+                  <h4>Second Presentment</h4>
+                  <p><strong>Date:</strong> {{ formatDate(dossierComplet.chargeback.dateSecondPresentment) }}</p>
+                  <p>Réfutation et nouveaux arguments</p>
+                </div>
+              </div>
+              
+              <div class="timeline-item current">
+                <div class="timeline-marker arbitrage"></div>
+                <div class="timeline-content">
+                  <h4>Arbitrage</h4>
+                  <p><strong>Phase actuelle:</strong> {{ dossierComplet.chargeback.phaseActuelle }}</p>
+                  <p>En attente de décision administrative</p>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Onglet Historique -->
+      <div class="tab-panel" *ngIf="activeTab === 'historique'">
+        <div class="historique-container">
+          <h3>Historique Complet des Échanges</h3>
+          
+          <div class="historique-list">
+            <div class="historique-item" 
+                 *ngFor="let echange of dossierComplet.historique; trackBy: trackByHistorique">
+              <div class="historique-marker" 
+                   [style.backgroundColor]="getPhaseColor(echange.phase)"></div>
+              <div class="historique-content">
+                <div class="historique-header">
+                  <span class="historique-date">{{ formatDateTime(echange.date) }}</span>
+                  <span class="historique-phase">{{ echange.phase }}</span>
+                </div>
+                <h4>{{ echange.action }}</h4>
+                <p>{{ echange.details }}</p>
+                <div class="historique-footer">
+                  <span class="historique-auteur">Par: {{ echange.auteur }}</span>
+                  <span class="historique-institution">{{ echange.institution }}</span>
+                </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- Onglet Justificatifs -->
+      <div class="tab-panel" *ngIf="activeTab === 'justificatifs'">
+        <div class="justificatifs-container">
+          <h3>Documents et Justificatifs</h3>
+          
+          <div class="justificatifs-grid">
+            <div class="justificatif-card" 
+                 *ngFor="let justificatif of dossierComplet.justificatifs; trackBy: trackByJustificatif">
+              <div class="justificatif-icon">
+                📄
+              </div>
+              <div class="justificatif-info">
+                <h4>{{ justificatif.nom }}</h4>
+                <p><strong>Type:</strong> {{ justificatif.type }}</p>
+                <p><strong>Phase:</strong> {{ justificatif.phase }}</p>
+                <p><strong>Taille:</strong> {{ formatFileSize(justificatif.taille) }}</p>
+                <p><strong>Ajouté le:</strong> {{ formatDate(justificatif.dateAjout) }}</p>
+                <p><strong>Institution:</strong> {{ justificatif.institution }}</p>
+              </div>
+              <div class="justificatif-actions">
+                <button class="btn-download" (click)="downloadJustificatif(justificatif)">
+                  📥 Télécharger
+                </button>
+              </div>
+            </div>
+          </div>
+          
+          <div class="empty-justificatifs" *ngIf="dossierComplet.justificatifs.length === 0">
+            <p>Aucun justificatif disponible</p>
+          </div>
+        </div>
+      </div>
+
+      <!-- Onglet Décision -->
+      <div class="tab-panel" *ngIf="activeTab === 'decision'">
+        <div class="decision-container">
+          <h3>Rendu de Décision d'Arbitrage</h3>
+          
+          <form class="decision-form">
+            <!-- Décision principale -->
+            <div class="form-group">
+              <label for="decision">Décision *</label>
+              <select id="decision" 
+                      [(ngModel)]="decisionForm.decision" 
+                      name="decision"
+                      (change)="onDecisionChange()"
+                      class="form-control">
+                <option value="FAVORABLE_EMETTEUR">Favorable à la banque émettrice</option>
+                <option value="FAVORABLE_ACQUIREUR">Favorable à la banque acquéreuse</option>
+                <option value="PARTAGE">Partage de responsabilité</option>
+                <option value="REJET">Rejet de la demande d'arbitrage</option>
+              </select>
+            </div>
+
+            <!-- Montant accordé -->
+            <div class="form-group" *ngIf="decisionForm.decision !== 'REJET'">
+              <label for="montantAccorde">Montant accordé *</label>
+              <div class="input-with-currency">
+                <input type="number" 
+                       id="montantAccorde"
+                       [(ngModel)]="decisionForm.montantAccorde"
+                       name="montantAccorde"
+                       [max]="selectedArbitrage?.montantConteste || 0"
+                       min="0"
+                       step="0.01"
+                       class="form-control">
+                <span class="currency">MAD</span>
+              </div>
+              <small class="form-text">
+                Maximum: {{ formatMontant(selectedArbitrage?.montantConteste || 0) }}
+              </small>
+            </div>
+
+            <!-- Répartition des frais -->
+            <div class="form-group">
+              <label for="repartitionFrais">Répartition des frais d'arbitrage *</label>
+              <select id="repartitionFrais" 
+                      [(ngModel)]="decisionForm.repartitionFrais" 
+                      name="repartitionFrais"
+                      class="form-control">
+                <option value="DEMANDEUR">À la charge du demandeur</option>
+                <option value="DEFENDEUR">À la charge du défendeur</option>
+                <option value="PARTAGE">Partagés équitablement</option>
+                <option value="PERDANT">À la charge de la partie perdante</option>
+              </select>
+            </div>
+
+            <!-- Motifs de la décision -->
+            <div class="form-group">
+              <label for="motifsDecision">Motifs de la décision *</label>
+              <textarea id="motifsDecision"
+                        [(ngModel)]="decisionForm.motifsDecision"
+                        name="motifsDecision"
+                        rows="6"
+                        class="form-control"
+                        placeholder="Exposez les motifs détaillés de votre décision (minimum 50 caractères)..."></textarea>
+              <div class="char-counter" 
+                   [class.valid]="decisionForm.motifsDecision && decisionForm.motifsDecision.length >= 50">
+                {{ (decisionForm.motifsDecision?.length || 0) }} / 50 caractères minimum
+              </div>
+            </div>
+
+            <!-- Délai d'exécution -->
+            <div class="form-group">
+              <label for="delaiExecution">Délai d'exécution (jours)</label>
+              <input type="number" 
+                     id="delaiExecution"
+                     [(ngModel)]="decisionForm.delaiExecution"
+                     name="delaiExecution"
+                     min="1"
+                     max="90"
+                     class="form-control">
+              <small class="form-text">
+                Délai accordé aux parties pour l'exécution de la décision
+              </small>
+            </div>
+
+            <!-- Commentaires supplémentaires -->
+            <div class="form-group">
+              <label for="commentairesSupplementaires">Commentaires supplémentaires</label>
+              <textarea id="commentairesSupplementaires"
+                        [(ngModel)]="decisionForm.commentairesSupplementaires"
+                        name="commentairesSupplementaires"
+                        rows="3"
+                        class="form-control"
+                        placeholder="Commentaires ou instructions additionnelles (optionnel)..."></textarea>
+            </div>
+
+            <!-- Résumé de la décision -->
+            <div class="decision-summary" *ngIf="isDecisionFormValid()">
+              <h4>Résumé de la Décision</h4>
+              <div class="summary-content">
+                <p><strong>Décision:</strong> {{ getDecisionLabel(decisionForm.decision) }}</p>
+                <p *ngIf="decisionForm.decision !== 'REJET'">
+                  <strong>Montant accordé:</strong> {{ formatMontant(decisionForm.montantAccorde || 0) }}
+                </p>
+                <p><strong>Frais d'arbitrage:</strong> {{ getRepartitionLabel(decisionForm.repartitionFrais) }}</p>
+                <p *ngIf="decisionForm.delaiExecution">
+                  <strong>Délai d'exécution:</strong> {{ decisionForm.delaiExecution }} jour(s)
+                </p>
+              </div>
+            </div>
+
+            <!-- Actions -->
+            <div class="form-actions">
+              <button type="button" 
+                      class="btn-secondary" 
+                      (click)="setActiveTab('resume')">
+                Retour au résumé
+              </button>
+              <button type="button" 
+                      class="btn-primary" 
+                      [disabled]="!isDecisionFormValid()"
+                      (click)="openConfirmDecisionModal()">
+                Rendre la décision
+              </button>
+            </div>
+          </form>
+        </div>
+      </div>
+    </div>
+  </div>
+</div>
+
+<!-- Modal de confirmation de décision -->
+<div class="modal-overlay" *ngIf="showConfirmDecisionModal" (click)="closeConfirmDecisionModal()">
+  <div class="modal-content-confirm" (click)="$event.stopPropagation()">
+    <div class="modal-header">
+      <h3>Confirmation de la Décision d'Arbitrage</h3>
+      <button class="close-btn" (click)="closeConfirmDecisionModal()">✕</button>
+    </div>
+    
+    <div class="modal-body">
+      <div class="warning-message">
+        <p>⚠️ <strong>Attention :</strong> Cette action est définitive et ne pourra pas être annulée.</p>
+      </div>
+      
+      <div class="decision-confirmation">
+        <h4>Résumé de votre décision :</h4>
+        <div class="confirmation-details">
+          <p><strong>Arbitrage :</strong> #{{ selectedArbitrage?.id }}</p>
+          <p><strong>Transaction :</strong> {{ selectedArbitrage?.transactionReference }}</p>
+          <p><strong>Montant en jeu :</strong> {{ formatMontant(selectedArbitrage?.montantConteste || 0) }}</p>
+          <hr>
+          <p><strong>Votre décision :</strong> {{ getDecisionLabel(decisionForm.decision) }}</p>
+          <p *ngIf="decisionForm.decision !== 'REJET'">
+            <strong>Montant accordé :</strong> {{ formatMontant(decisionForm.montantAccorde || 0) }}
+          </p>
+          <p><strong>Répartition des frais :</strong> {{ getRepartitionLabel(decisionForm.repartitionFrais) }}</p>
+          <p><strong>Délai d'exécution :</strong> {{ decisionForm.delaiExecution }} jour(s)</p>
+        </div>
+      </div>
+    </div>
+    
+    <div class="modal-actions">
+      <button class="btn-secondary" (click)="closeConfirmDecisionModal()">
+        Annuler
+      </button>
+      <button class="btn-danger" 
+              [disabled]="isProcessingDecision"
+              (click)="confirmerDecision()">
+        <span *ngIf="!isProcessingDecision">✅ Confirmer la décision</span>
+        <span *ngIf="isProcessingDecision">⏳ Traitement en cours...</span>
+      </button>
+    </div>
+  </div>
+</div>

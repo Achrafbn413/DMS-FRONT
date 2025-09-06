@@ -13,7 +13,10 @@
       </p>
     </div>
     
-    <button class="refresh-btn" (click)="refreshStats()" [disabled]="isLoading">
+    <!-- ✅ FIXED: Ajout de la gestion sécurisée des événements -->
+    <button class="refresh-btn" 
+            (click)="handleSecureEvent($event, refreshStats.bind(this))" 
+            [disabled]="isLoading">
       <span class="refresh-icon" [class.spinning]="isLoading">🔄</span>
       Actualiser
     </button>
@@ -77,10 +80,15 @@
       <h2 class="section-title">⚡ Actions rapides</h2>
       
       <div class="actions-grid">
-        <div *ngFor="let action of quickActions.slice(0, 6)" 
+        <!-- ✅ FIXED: Utilisation de trackBy pour améliorer les performances -->
+        <div *ngFor="let action of quickActions.slice(0, 6); trackBy: trackByActionTitle" 
              class="action-card" 
              [routerLink]="action.route"
-             [style.--card-color]="action.color">
+             [style.--card-color]="action.color"
+             role="button"
+             tabindex="0"
+             (keydown.enter)="navigateToAction(action.route)"
+             (keydown.space)="navigateToAction(action.route)">
           
           <span class="action-icon">{{ action.icon }}</span>
           
@@ -89,7 +97,11 @@
             <p class="action-description">{{ action.description }}</p>
           </div>
           
-          <span class="action-count" *ngIf="action.count !== undefined">{{ action.count }}</span>
+          <!-- ✅ FIXED: Vérification plus robuste pour l'affichage du count -->
+          <span class="action-count" 
+                *ngIf="action.count !== undefined && action.count !== null">
+            {{ action.count }}
+          </span>
         </div>
       </div>
     </div>
@@ -99,7 +111,8 @@
       <h2 class="section-title">🕐 Activités récentes</h2>
       
       <div class="activities-list">
-        <div *ngFor="let activity of recentActivities" class="activity-item">
+        <div *ngFor="let activity of recentActivities; trackBy: trackByActivityMessage" 
+             class="activity-item">
           <div class="activity-icon">{{ activity.icon }}</div>
           <div class="activity-content">
             <p class="activity-message">{{ activity.message }}</p>
@@ -108,7 +121,10 @@
         </div>
         
         <div class="view-all-activities">
-          <button routerLink="/admin/activities" class="view-all-btn">
+          <button routerLink="/admin/activities" 
+                  class="view-all-btn"
+                  type="button"
+                  aria-label="Voir toutes les activités">
             Voir toutes les activités →
           </button>
         </div>
@@ -119,10 +135,17 @@
   <!-- ========== FOOTER ACTIONS ========== -->
   <div class="footer-actions">
     <div class="emergency-actions">
-      <button class="emergency-btn backup">
+      <!-- ✅ FIXED: Ajout de la gestion sécurisée pour les boutons d'urgence -->
+      <button class="emergency-btn backup"
+              type="button"
+              (click)="handleSecureEvent($event, performBackup.bind(this))"
+              aria-label="Effectuer une sauvegarde d'urgence">
         💾 Sauvegarde d'urgence
       </button>
-      <button class="emergency-btn maintenance">
+      <button class="emergency-btn maintenance"
+              type="button"
+              (click)="handleSecureEvent($event, toggleMaintenanceMode.bind(this))"
+              aria-label="Activer le mode maintenance">
         🛠️ Mode maintenance
       </button>
     </div>

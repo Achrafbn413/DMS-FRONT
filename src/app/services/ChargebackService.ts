@@ -1,6 +1,7 @@
 import { Injectable } from '@angular/core';
 import { HttpClient, HttpHeaders, HttpParams } from '@angular/common/http';
 import { Observable, catchError, throwError, map } from 'rxjs';
+import { of } from 'rxjs';
 import { AuthService } from '../auth/auth.service';
 import {
   InitiationChargebackRequest,
@@ -226,39 +227,59 @@ export class ChargebackService {
    * ✅ Traiter le second presentment (Banque Émettrice)
    * Compatible avec SecondPresentmentRequest backend
    */
-  traiterSecondPresentment(request: SecondPresentmentRequest): Observable<LitigeChargebackDTO> {
-    console.log('🎯 [ChargebackService] Second presentment:', request);
-    
-    // Validation
-    if (!request.litigeId) {
-      return throwError(() => new Error('ID du litige obligatoire'));
-    }
-    
-    if (!request.motifRejet || request.motifRejet.trim().length < 20) {
-      return throwError(() => new Error('Motif de rejet obligatoire (min 20 caractères)'));
-    }
-    
-    if (!request.refutationDetaillee || request.refutationDetaillee.trim().length < 50) {
-      return throwError(() => new Error('Réfutation détaillée obligatoire (min 50 caractères)'));
-    }
-
-    // Enrichir la requête
-    const enrichedRequest = { ...request };
-    
-    if (!enrichedRequest.utilisateurEmetteurId) {
-      enrichedRequest.utilisateurEmetteurId = this.getCurrentUser().id;
-    }
-    
-    if (!enrichedRequest.banqueEmettriceId) {
-      enrichedRequest.banqueEmettriceId = this.getInstitutionId();
-    }
-    
-    return this.http.post<LitigeChargebackDTO>(`${this.apiUrl}/second-presentment`, enrichedRequest, {
-      headers: this.getHeaders()
-    }).pipe(
-      catchError(this.handleError('second presentment'))
-    );
+  /**
+ * ✅ Traiter le second presentment (Banque Émettrice)
+ * Compatible avec SecondPresentmentRequest backend
+ */
+traiterSecondPresentment(request: SecondPresentmentRequest): Observable<LitigeChargebackDTO> {
+  console.log('⚡ [SECOND-CORRECTED] Second presentment:', request);
+  
+  // Validation
+  if (!request.litigeId) {
+    return throwError(() => new Error('ID du litige obligatoire'));
   }
+  
+  if (!request.motifRejet || request.motifRejet.trim().length < 20) {
+    return throwError(() => new Error('Motif de rejet obligatoire (min 20 caractères)'));
+  }
+  
+  if (!request.refutationDetaillee || request.refutationDetaillee.trim().length < 50) {
+    return throwError(() => new Error('Réfutation détaillée obligatoire (min 50 caractères)'));
+  }
+
+  // Enrichir la requête
+  const enrichedRequest = { ...request };
+  
+  if (!enrichedRequest.utilisateurEmetteurId) {
+    enrichedRequest.utilisateurEmetteurId = this.getCurrentUser().id;
+  }
+  
+  if (!enrichedRequest.banqueEmettriceId) {
+    enrichedRequest.banqueEmettriceId = this.getInstitutionId();
+  }
+  
+  // ✅ CORRECTION CRITIQUE : Adapter les preuves pour le backend
+  if (request.nouvellesPreuves && request.nouvellesPreuves.length > 0) {
+    // Le backend attend "nouvellesSpreuves" (avec faute d'orthographe)
+    (enrichedRequest as any).nouvellesSpreuves = request.nouvellesPreuves.map(file => file.name);
+    console.log('⚡ [SECOND-CORRECTED] Preuves adaptées pour backend:', (enrichedRequest as any).nouvellesSpreuves);
+    
+    // Supprimer nouvellesPreuves car le backend ne l'attend pas
+    delete enrichedRequest.nouvellesPreuves;
+  }
+  
+  console.log('⚡ [SECOND-CORRECTED] Requête finale envoyée au backend:', enrichedRequest);
+  
+  return this.http.post<LitigeChargebackDTO>(`${this.apiUrl}/second-presentment`, enrichedRequest, {
+    headers: this.getHeaders()
+  }).pipe(
+    map((response: LitigeChargebackDTO) => {
+      console.log('✅ [SECOND-CORRECTED] Second presentment traité:', response);
+      return response;
+    }),
+    catchError(this.handleError('second presentment'))
+  );
+}
 
   /**
    * ✅ Demander un arbitrage (Banque Émettrice)
@@ -302,56 +323,67 @@ export class ChargebackService {
    * ✅ Rendre une décision d'arbitrage (Admin)
    * Compatible avec l'API backend
    */
-  rendreDecisionArbitrage(
-    arbitrageId: number, 
-    decision: DecisionArbitrage,
-    motifs: string,
-    repartitionFrais: RepartitionFrais,
-    adminId: number
-  ): Observable<ArbitrageDTO> {
-    console.log('🎯 [ChargebackService] Décision arbitrage:', {
-      arbitrageId, decision, motifs, repartitionFrais, adminId
-    });
+  rendreDecisionArbitrage(arbitrageId: number, request: DecisionArbitrageRequest): Observable<ArbitrageDTO> {
+  console.log('⚖️ [ARBITRAGE-CORRECTED] Décision arbitrage:', { arbitrageId, request });
 
-    if (!motifs || motifs.trim().length < 20) {
-      return throwError(() => new Error('Motifs de décision obligatoires (min 20 caractères)'));
-    }
-
-    const params = new HttpParams()
-      .set('decision', decision)
-      .set('motifs', motifs)
-      .set('repartitionFrais', repartitionFrais)
-      .set('adminId', adminId.toString());
-    
-    return this.http.put<ArbitrageDTO>(`${this.apiUrl}/arbitrage/${arbitrageId}/decision`, {}, {
-      headers: this.getHeaders(),
-      params: params
-    }).pipe(
-      catchError(this.handleError('rendu de décision d\'arbitrage'))
-    );
+  if (!request.motifsDecision || request.motifsDecision.trim().length < 20) {
+    return throwError(() => new Error('Motifs de décision obligatoires (min 20 caractères)'));
   }
+
+  // ✅ CORRECTION: Backend attend des paramètres URL, pas un body JSON
+  const params = new HttpParams()
+    .set('decision', request.decision)
+    .set('motifs', request.motifsDecision) 
+    .set('repartitionFrais', request.repartitionFrais)
+    .set('arbitreAdminId', this.getCurrentUser().id.toString());
+    
+  console.log('⚖️ [ARBITRAGE-CORRECTED] Paramètres URL:', params.toString());
+  
+  return this.http.put<ArbitrageDTO>(`${this.apiUrl}/arbitrage/${arbitrageId}/decision`, {}, {
+    headers: this.getHeaders(),
+    params: params
+  }).pipe(
+    map((response: ArbitrageDTO) => {
+      console.log('✅ [ARBITRAGE-CORRECTED] Décision rendue avec succès:', response);
+      return response;
+    }),
+    catchError(this.handleError('rendu de décision d\'arbitrage'))
+  );
+}
 
   /**
    * ✅ Annuler un chargeback
    */
-  annulerChargeback(litigeId: number, motifAnnulation: string): Observable<any> {
-    console.log('🎯 [ChargebackService] Annulation chargeback:', { litigeId, motifAnnulation });
+  /**
+ * ✅ Annuler un chargeback - SIGNATURE CORRIGÉE
+/**
+ * Annuler un chargeback
+ */
+annulerChargeback(litigeId: number, utilisateurId: number, motifAnnulation: string): Observable<boolean> {
+  console.log('🚫 [CANCEL-CORRECTED] Annulation chargeback:', { litigeId, utilisateurId, motifAnnulation });
 
-    if (!motifAnnulation || motifAnnulation.trim().length < 10) {
-      return throwError(() => new Error('Motif d\'annulation obligatoire (min 10 caractères)'));
-    }
-
-    const params = new HttpParams()
-      .set('utilisateurId', this.getCurrentUser().id.toString())
-      .set('motif', motifAnnulation);
-    
-    return this.http.put(`${this.apiUrl}/${litigeId}/cancel`, {}, {
-      headers: this.getHeaders(),
-      params: params
-    }).pipe(
-      catchError(this.handleError('annulation du chargeback'))
-    );
+  if (!motifAnnulation || motifAnnulation.trim().length < 10) {
+    return throwError(() => new Error('Motif d\'annulation obligatoire (min 10 caractères)'));
   }
+
+  // ✅ CORRECTION: Backend attend 3 paramètres: litigeId, utilisateurId, motif
+  const params = new HttpParams()
+    .set('utilisateurId', utilisateurId.toString())
+    .set('motif', motifAnnulation);
+    
+  console.log('🚫 [CANCEL-CORRECTED] Paramètres URL:', params.toString());
+  
+  return this.http.put<boolean>(`${this.apiUrl}/${litigeId}/cancel`, {}, {
+    headers: this.getHeaders(),
+    params: params
+  }).pipe(
+    map((response: boolean) => {
+      console.log('✅ [CANCEL-CORRECTED] Annulation réussie:', response);
+      return response;
+    }),
+    catchError(this.handleError('annulation du chargeback'))
+  );
+}
 
   // ===============================================
   // CONSULTATION ET STATISTIQUES
@@ -400,14 +432,44 @@ export class ChargebackService {
   /**
    * ✅ Récupérer les statistiques de chargeback pour une institution
    */
-  getStatistiquesChargeback(institutionId?: number): Observable<StatistiquesChargeback> {
+ /**
+ * Récupérer les statistiques de chargeback pour une institution
+ */
+/**
+ * Récupérer les statistiques de chargeback pour une institution
+ */
+getStatistiquesChargeback(institutionId?: number): Observable<StatistiquesChargeback> {
     const targetInstitutionId = institutionId || this.getInstitutionId();
-    console.log('📊 [ChargebackService] Statistiques pour institution:', targetInstitutionId);
+    console.log('📊 [STATS-CORRECTED] Appel statistiques institution:', targetInstitutionId);
     
-    return this.http.get<StatistiquesChargeback>(`${this.apiUrl}/stats/${targetInstitutionId}`, {
+    return this.http.get<any[]>(`${this.apiUrl}/stats/${targetInstitutionId}`, {
       headers: this.getHeaders()
     }).pipe(
-      catchError(this.handleError('récupération des statistiques'))
+      map((statsArray: any[]) => {
+        console.log('📊 [STATS-CORRECTED] Réponse backend reçue (array):', statsArray);
+        
+        // Backend retourne: [total, enCours, finalises, urgents, montantTotal]
+        const mappedStats = {
+          total: statsArray[0] || 0,
+          enCours: statsArray[1] || 0, 
+          finalises: statsArray[2] || 0,
+          urgents: statsArray[3] || 0,
+          montantTotal: statsArray[4] || 0
+        } as StatistiquesChargeback;
+        
+        console.log('📊 [STATS-CORRECTED] Statistiques converties:', mappedStats);
+        return mappedStats;
+      }),
+      catchError((error) => {
+        console.error('❌ [STATS-CORRECTED] Erreur récupération stats:', error);
+        return of({
+          total: 0,
+          enCours: 0,
+          finalises: 0,
+          urgents: 0,
+          montantTotal: 0
+        } as StatistiquesChargeback);
+      })
     );
   }
 
@@ -536,9 +598,10 @@ export class ChargebackService {
       canInitier: !!isEmettrice && !chargeback.id,
       canRepresenter: !!isAcquereuse && phase === 'CHARGEBACK_INITIAL',
       canSecondPresentment: !!isEmettrice && phase === 'REPRESENTATION',
-      canDemanderArbitrage: !!isEmettrice && 
-        ['REPRESENTATION', 'PRE_ARBITRAGE'].includes(phase || '') && 
-        !!chargeback.peutEtreEscalade,
+      canDemanderArbitrage: (
+  (!!isEmettrice && phase === 'REPRESENTATION') ||
+  (!!isAcquereuse && phase === 'PRE_ARBITRAGE')
+),
       canDeciderArbitrage: !!isAdmin && phase === 'ARBITRAGE',
       canAnnuler: (!!isEmettrice || !!isAcquereuse) && 
         !['ARBITRAGE', 'FINALISE'].includes(phase || ''),
@@ -808,12 +871,13 @@ export class ChargebackService {
     return ChargebackUtils.formatFileSize(bytes);
   }
 
-
+/*
   // ✅ AJOUTEZ cette méthode dans ChargebackService.ts
 deciderArbitrage(chargebackId: number, request: DecisionArbitrageRequest): Observable<any> {
   const url = 'http://localhost:8080/api/chargebacks/' + chargebackId + '/decision-arbitrage';
   return this.http.post<any>(url, request);
 }
+  */
 
 /**
  * Obtenir les en-têtes HTTP avec token d'authentification
@@ -830,7 +894,8 @@ getHistoriqueChargeback(litigeId: number): Observable<EchangeLitige[]> {
     return throwError(() => new Error('ID du litige invalide'));
   }
 
-  const url = `http://localhost:8080/api/chargebacks/${litigeId}/historique`;
+ const url = `${this.apiUrl}/${litigeId}/historique`;
+
   
   return this.http.get<EchangeLitige[]>(url, {
     headers: this.getHeaders()
@@ -841,4 +906,19 @@ getHistoriqueChargeback(litigeId: number): Observable<EchangeLitige[]> {
     })
   );
 }
+
+/**
+ * Méthode de test temporaire pour diagnostiquer les problèmes
+ */
+testRepresentation(request: RepresentationRequest): Observable<any> {
+  console.log('🧪 [TEST] Test représentation:', request);
+  
+  return this.http.post<any>(`${this.apiUrl}/representation/test`, request, {
+    headers: this.getHeaders()
+  }).pipe(
+    catchError(this.handleError('test représentation'))
+  );
+}
+
+
 }

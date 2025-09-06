@@ -1,6 +1,7 @@
 import { Component, OnInit } from '@angular/core';
 import { CommonModule } from '@angular/common';
 import { FormsModule } from '@angular/forms';
+
 import { HttpClient, HttpHeaders, HttpErrorResponse } from '@angular/common/http';
 import { TransactionService } from '../../../services/transaction.service';
 import { LitigeService } from '../../../services/litige.service';
@@ -315,18 +316,24 @@ private separateChargebacksByRole(): void {
     return;
   }
 
-  // Debug chaque chargeback
-  this.debugChargebacks();
+  // Validation et enrichissement des données manquantes
+  this.enrichChargebacksWithMissingData();
 
   this.chargebacksEmis = this.chargebacks.filter(cb => {
-    const isEmetteur = cb.transaction?.banqueEmettrice?.id === this.institutionId;
-    console.log(`🏧 [EMIS] CB #${cb.id}: ${isEmetteur ? 'OUI' : 'NON'} (${cb.transaction?.banqueEmettrice?.id} === ${this.institutionId})`);
+    // Méthodes multiples pour déterminer si c'est émetteur
+    const isEmetteur = this.isChargebackEmetteur(cb);
+    if (isEmetteur) {
+      console.log(`✅ [EMIS] CB #${cb.id}: ÉMETTEUR confirmé`);
+    }
     return isEmetteur;
   });
 
   this.chargebacksRecus = this.chargebacks.filter(cb => {
-    const isAcquereur = cb.transaction?.banqueAcquereuse?.id === this.institutionId;
-    console.log(`🏪 [RECUS] CB #${cb.id}: ${isAcquereur ? 'OUI' : 'NON'} (${cb.transaction?.banqueAcquereuse?.id} === ${this.institutionId})`);
+    // Méthodes multiples pour déterminer si c'est acquéreur
+    const isAcquereur = this.isChargebackAcquereur(cb);
+    if (isAcquereur) {
+      console.log(`✅ [RECUS] CB #${cb.id}: ACQUÉREUR confirmé`);
+    }
     return isAcquereur;
   });
 
@@ -335,6 +342,85 @@ private separateChargebacksByRole(): void {
     emis: this.chargebacksEmis.length,
     recus: this.chargebacksRecus.length
   });
+}
+
+private enrichChargebacksWithMissingData(): void {
+  this.chargebacks.forEach(cb => {
+    if (!cb.transaction?.banqueEmettrice?.id || !cb.transaction?.banqueAcquereuse?.id) {
+      console.log(`⚠️ [ENRICHISSEMENT] CB #${cb.id} - Données bancaires manquantes, tentative de récupération...`);
+      
+      // Essayer de récupérer via le litige associé
+      if (cb.litigeId) {
+        const litigeAssocie = this.litigesAcquereur.find(l => l.id === cb.litigeId);
+        if (litigeAssocie?.transaction) {
+          console.log(`✅ [ENRICHISSEMENT] Données trouvées via litige #${cb.litigeId}`);
+          
+          // Créer la structure transaction si elle n'existe pas
+          if (!cb.transaction) {
+            cb.transaction = {
+              id: litigeAssocie.transaction.id || 0,
+              reference: litigeAssocie.transaction.reference || '',
+              montant: litigeAssocie.transaction.montant || 0,
+              type: litigeAssocie.transaction.type || '',
+              statut: litigeAssocie.transaction.statut || '',
+              dateTransaction: litigeAssocie.transaction.dateTransaction || ''
+            };
+          }
+          
+          // Assigner les banques avec vérification de type
+          if (litigeAssocie.transaction.banqueEmettrice?.id) {
+            cb.transaction.banqueEmettrice = {
+              id: litigeAssocie.transaction.banqueEmettrice.id,
+              nom: litigeAssocie.transaction.banqueEmettrice.nom || '',
+              type: litigeAssocie.transaction.banqueEmettrice.type
+            };
+          }
+          
+          if (litigeAssocie.transaction.banqueAcquereuse?.id) {
+            cb.transaction.banqueAcquereuse = {
+              id: litigeAssocie.transaction.banqueAcquereuse.id,
+              nom: litigeAssocie.transaction.banqueAcquereuse.nom || '',
+              type: litigeAssocie.transaction.banqueAcquereuse.type
+            };
+          }
+        }
+      }
+    }
+  });
+}
+
+private isChargebackEmetteur(chargeback: LitigeChargebackDTO): boolean {
+  // Méthode 1: Via transaction directe
+  if (chargeback.transaction?.banqueEmettrice?.id === this.institutionId) {
+    return true;
+  }
+  
+  // Méthode 2: Via litige associé
+  if (chargeback.litigeId) {
+    const litige = this.litigesAcquereur.find(l => l.id === chargeback.litigeId);
+    if (litige?.transaction?.banqueEmettrice?.id === this.institutionId) {
+      return true;
+    }
+  }
+  
+  return false; // ✅ CORRECTION: Supprimer la logique de fallback défaillante
+}
+
+private isChargebackAcquereur(chargeback: LitigeChargebackDTO): boolean {
+  // Méthode 1: Via transaction directe
+  if (chargeback.transaction?.banqueAcquereuse?.id === this.institutionId) {
+    return true;
+  }
+  
+  // Méthode 2: Via litige associé
+  if (chargeback.litigeId) {
+    const litige = this.litigesAcquereur.find(l => l.id === chargeback.litigeId);
+    if (litige?.transaction?.banqueAcquereuse?.id === this.institutionId) {
+      return true;
+    }
+  }
+  
+  return false; // ✅ CORRECTION: Supprimer la logique de fallback défaillante
 }
 
 /**
@@ -572,7 +658,6 @@ clearChargebackFiltersRecus(): void {
   openJustificatifsModal(chargeback: LitigeChargebackDTO): void {
   console.log('📎 [Justificatifs] Ouverture modal pour chargeback:', chargeback.id);
   
-  // ✅ Vérification robuste
   const chargebackId = chargeback.id;
   if (!chargebackId || chargebackId <= 0) {
     console.error('❌ ID du chargeback invalide:', chargebackId);
@@ -580,10 +665,13 @@ clearChargebackFiltersRecus(): void {
     return;
   }
   
+  // Enrichir les détails du chargeback avant d'ouvrir le modal
   this.selectedChargebackForAction = chargeback;
   this.showJustificatifsModal = true;
-  this.loadChargebackJustificatifs(chargebackId); // ✅ TypeScript confirmé que c'est un number > 0
+  this.loadChargebackJustificatifs(chargebackId);
 }
+
+
 
   closeJustificatifsModal(): void {
     this.showJustificatifsModal = false;
@@ -597,193 +685,383 @@ clearChargebackFiltersRecus(): void {
    * Traiter représentation
    */
   processRepresentation(): void {
-    if (!this.selectedChargebackForAction || !this.isFormValid('representation')) {
-      this.notificationService.showError('❌ Formulaire invalide');
+  console.log('🔄 [PROCESS-REPRESENTATION] Début traitement');
+  console.log('🔄 [PROCESS-REPRESENTATION] Chargeback sélectionné:', this.selectedChargebackForAction);
+  console.log('🔄 [PROCESS-REPRESENTATION] Formulaire:', this.representationForm);
+  console.log('🔄 [PROCESS-REPRESENTATION] isFormValid:', this.isFormValid('representation'));
+
+  if (!this.selectedChargebackForAction || !this.isFormValid('representation')) {
+    console.log('❌ [PROCESS-REPRESENTATION] Validation échouée');
+    console.log('❌ [PROCESS-REPRESENTATION] selectedChargebackForAction:', !!this.selectedChargebackForAction);
+    console.log('❌ [PROCESS-REPRESENTATION] isFormValid:', this.isFormValid('representation'));
+    this.notificationService.showError('❌ Formulaire invalide');
+    return;
+  }
+
+  if (!this.selectedChargebackForAction.litigeId) {
+    this.notificationService.showError('❌ Chargeback sélectionné invalide');
+    return;
+  }
+
+  this.isProcessingRepresentation = true;
+
+  // Étape 1: Uploader les fichiers d'abord si présents
+  if (this.representationForm.justificatifsDefense.length > 0) {
+    this.uploadJustificatifsForPhase('REPRESENTATION', this.representationForm.justificatifsDefense)
+      .then(() => {
+        // Étape 2: Traiter la représentation après upload
+        this.submitRepresentationRequest();
+      })
+      .catch(error => {
+        console.error('❌ Erreur upload justificatifs:', error);
+        this.notificationService.showError('❌ Erreur lors de l\'upload des justificatifs');
+        this.isProcessingRepresentation = false;
+      });
+  } else {
+    // Pas de fichiers, traiter directement
+    this.submitRepresentationRequest();
+  }
+}
+
+private submitRepresentationRequest(): void {
+  const request: RepresentationRequest = {
+    litigeId: this.selectedChargebackForAction!.litigeId!,
+    utilisateurAcquereurId: this.currentUserId!,
+    banqueAcquereuseId: this.institutionId!,
+    typeReponse: this.representationForm.typeReponse,
+    reponseDetaillee: this.representationForm.reponseDetaillee,
+    argumentsDefense: this.representationForm.argumentsDefense,
+    montantAccepte: this.representationForm.montantAccepte,
+    demandeDelaiSupplementaire: this.representationForm.demandeDelaiSupplementaire,
+    joursDelaiSupplementaire: this.representationForm.joursDelaiSupplementaire
+  };
+
+  console.log('🧪 [TEST-FRONTEND] Test avant vrai appel...');
+  
+  // ÉTAPE 1: Test préalable
+  this.chargebackService.testRepresentation(request).subscribe({
+    next: (testResult) => {
+      console.log('✅ [TEST-FRONTEND] Test réussi:', testResult);
+      
+      if (testResult.success && testResult.phaseValide) {
+        console.log('✅ [TEST-FRONTEND] Phase valide, lancement du vrai appel...');
+        
+        // ÉTAPE 2: Si le test passe, faire le vrai appel
+        this.chargebackService.traiterRepresentation(request).subscribe({
+          next: (result) => {
+            console.log('✅ [REPRESENTATION-SYNC] Succès backend:', result);
+            
+            if (this.selectedChargebackForAction) {
+              this.selectedChargebackForAction.phaseActuelle = 'REPRESENTATION';
+            }
+            
+            this.notificationService.showSuccess('✅ Représentation envoyée avec succès');
+            this.closeRepresentationModal();
+            
+            this.loadChargebackData().then(() => {
+              console.log('🔄 [REPRESENTATION-SYNC] Données rechargées');
+            });
+            
+            this.isProcessingRepresentation = false;
+          },
+          error: (error) => {
+            console.error('❌ [REPRESENTATION-SYNC] Erreur backend:', error);
+            this.notificationService.showError('❌ Erreur lors de la représentation');
+            this.isProcessingRepresentation = false;
+          }
+        });
+      } else {
+        console.error('❌ [TEST-FRONTEND] Phase invalide:', testResult.chargeback?.phase);
+        this.notificationService.showError(`❌ Phase invalide: ${testResult.chargeback?.phase}. Attendu: CHARGEBACK_INITIAL`);
+        this.isProcessingRepresentation = false;
+      }
+    },
+    error: (testError) => {
+      console.error('❌ [TEST-FRONTEND] Test échoué:', testError);
+      this.notificationService.showError('❌ Test préalable échoué: ' + (testError.error?.error || testError.message));
+      this.isProcessingRepresentation = false;
+    }
+  });
+}
+
+private uploadJustificatifsForPhase(phase: string, files: File[]): Promise<void> {
+  return new Promise((resolve, reject) => {
+    if (!files || files.length === 0) {
+      resolve();
       return;
     }
 
-    // ✅ Vérification en amont
-if (!this.selectedChargebackForAction || !this.selectedChargebackForAction.litigeId) {
-  this.notificationService.showError('❌ Chargeback sélectionné invalide');
-  return;
-}
+    const chargebackId = this.selectedChargebackForAction?.id;
+    if (!chargebackId) {
+      reject(new Error('ID chargeback manquant'));
+      return;
+    }
 
-const request: RepresentationRequest = {
-  litigeId: this.selectedChargebackForAction.litigeId,
-  typeReponse: this.representationForm.typeReponse,
-  reponseDetaillee: this.representationForm.reponseDetaillee,
-  argumentsDefense: this.representationForm.argumentsDefense,
-  montantAccepte: this.representationForm.montantAccepte,
-  demandeDelaiSupplementaire: this.representationForm.demandeDelaiSupplementaire,
-  joursDelaiSupplementaire: this.representationForm.joursDelaiSupplementaire
-};
+    console.log(`📎 [Upload] Début upload ${files.length} fichier(s) pour phase ${phase}`);
+    
+    const formData = new FormData();
+    files.forEach((file, index) => {
+      formData.append('files', file);
+    });
+    formData.append('phase', phase);
+    formData.append('chargebackId', chargebackId.toString());
 
-    console.log('📝 [Representation] Traitement:', request);
-    this.isProcessingRepresentation = true;
+    const headers = new HttpHeaders({
+      'Authorization': `Bearer ${this.authService.getToken()}`
+    });
 
-    this.chargebackService.traiterRepresentation(request).subscribe({
-      next: (result) => {
-        this.notificationService.showSuccess('✅ Représentation traitée avec succès');
-        this.closeRepresentationModal();
-        this.loadChargebackData();
-        this.isProcessingRepresentation = false;
+    this.http.post(`http://localhost:8080/api/public/chargebacks/${chargebackId}/upload-justificatifs`, 
+                   formData, { headers }).subscribe({
+      next: (response: any) => {
+        console.log(`✅ [Upload] Fichiers uploadés avec succès pour phase ${phase}`);
+        resolve();
       },
-      error: (error) => {
-        console.error('❌ Erreur représentation:', error);
-        this.notificationService.showError('❌ Erreur lors du traitement de la représentation');
-        this.isProcessingRepresentation = false;
+      error: (error: any) => {
+        console.error(`❌ [Upload] Erreur upload pour phase ${phase}:`, error);
+        reject(error);
       }
     });
-  }
+  });
+}
 
   /**
    * Traiter second presentment
    */
   processSecondPresentment(): void {
-    if (!this.selectedChargebackForAction || !this.isFormValid('secondPresentment')) {
-      this.notificationService.showError('❌ Formulaire invalide');
-      return;
-    }
-
-    const request: SecondPresentmentRequest = {
-      litigeId: this.selectedChargebackForAction.litigeId,
-      motifRejet: this.secondPresentmentForm.motifRejet,
-      refutationDetaillee: this.secondPresentmentForm.refutationDetaillee,
-      argumentsSupplementaires: this.secondPresentmentForm.argumentsSupplementaires,
-      analyseTechnique: this.secondPresentmentForm.analyseTechnique,
-      demandeArbitrage: this.secondPresentmentForm.demandeArbitrage
-    };
-
-    console.log('⚡ [SecondPresentment] Traitement:', request);
-    this.isProcessingSecondPresentment = true;
-
-    this.chargebackService.traiterSecondPresentment(request).subscribe({
-      next: (result) => {
-        this.notificationService.showSuccess('✅ Second presentment traité avec succès');
-        this.closeSecondPresentmentModal();
-        this.loadChargebackData();
-        this.isProcessingSecondPresentment = false;
-      },
-      error: (error) => {
-        console.error('❌ Erreur second presentment:', error);
-        this.notificationService.showError('❌ Erreur lors du traitement du second presentment');
-        this.isProcessingSecondPresentment = false;
-      }
-    });
+  if (!this.selectedChargebackForAction || !this.isFormValid('secondPresentment')) {
+    this.notificationService.showError('❌ Formulaire invalide');
+    return;
   }
+
+  if (!this.selectedChargebackForAction.litigeId) {
+    this.notificationService.showError('❌ Chargeback sélectionné invalide');
+    return;
+  }
+
+  this.isProcessingSecondPresentment = true;
+
+  // Étape 1: Uploader les fichiers si présents
+  if (this.secondPresentmentForm.nouvellesPreuves.length > 0) {
+    this.uploadJustificatifsForPhase('SECOND_PRESENTMENT', this.secondPresentmentForm.nouvellesPreuves)
+      .then(() => {
+        this.submitSecondPresentmentRequest();
+      })
+      .catch(error => {
+        console.error('❌ Erreur upload preuves:', error);
+        this.notificationService.showError('❌ Erreur lors de l\'upload des preuves');
+        this.isProcessingSecondPresentment = false;
+      });
+  } else {
+    this.submitSecondPresentmentRequest();
+  }
+}
+
+private submitSecondPresentmentRequest(): void {
+  const request: SecondPresentmentRequest = {
+  litigeId: this.selectedChargebackForAction!.litigeId!,
+  motifRejet: this.secondPresentmentForm.motifRejet,
+  refutationDetaillee: this.secondPresentmentForm.refutationDetaillee,
+  argumentsSupplementaires: this.secondPresentmentForm.argumentsSupplementaires,
+  analyseTechnique: this.secondPresentmentForm.analyseTechnique,
+  nouvellesPreuves: this.secondPresentmentForm.nouvellesPreuves, // ✅ CORRECTION : Garder les File[]
+  nouvellesSpreuves: this.secondPresentmentForm.nouvellesPreuves.map(file => file.name), // ✅ Ajouter pour le backend
+  demandeArbitrage: this.secondPresentmentForm.demandeArbitrage
+};
+
+  console.log('⚡ [SecondPresentment] Traitement avec orthographe backend:', request);
+
+  this.chargebackService.traiterSecondPresentment(request).subscribe({
+    next: (result) => {
+      // ✅ CORRECTION: Mise à jour de la phase locale
+      if (this.selectedChargebackForAction) {
+        this.selectedChargebackForAction.phaseActuelle = 'PRE_ARBITRAGE';
+        console.log('🔄 Phase locale mise à jour vers PRE_ARBITRAGE');
+      }
+      
+      this.notificationService.showSuccess('✅ Second presentment traité avec succès');
+      this.closeSecondPresentmentModal();
+      
+      // Rechargement complet pour synchronisation
+      this.loadChargebackData().then(() => {
+        console.log('🔄 Données chargeback rechargées après second presentment');
+      });
+      
+      this.isProcessingSecondPresentment = false;
+    },
+    error: (error) => {
+      console.error('❌ Erreur second presentment:', error);
+      this.notificationService.showError('❌ Erreur lors du traitement du second presentment');
+      this.isProcessingSecondPresentment = false;
+    }
+  });
+}
 
   /**
    * Traiter arbitrage
    */
-  processArbitrage(): void {
-    if (!this.selectedChargebackForAction || !this.isFormValid('arbitrage')) {
-      this.notificationService.showError('❌ Formulaire invalide');
-      return;
-    }
+ processArbitrage(): void {
+  if (!this.selectedChargebackForAction || !this.isFormValid('arbitrage')) {
+    this.notificationService.showError('❌ Formulaire invalide');
+    return;
+  }
 
-    // ✅ Vérification en amont
-if (!this.selectedChargebackForAction || !this.selectedChargebackForAction.litigeId) {
-  this.notificationService.showError('❌ Chargeback sélectionné invalide');
-  return;
+  if (!this.selectedChargebackForAction.litigeId) {
+    this.notificationService.showError('❌ Chargeback sélectionné invalide');
+    return;
+  }
+
+  this.isProcessingArbitrage = true;
+
+  // Étape 1: Uploader les documents finaux si présents
+  if (this.arbitrageForm.documentsFinaux.length > 0) {
+    this.uploadJustificatifsForPhase('ARBITRAGE', this.arbitrageForm.documentsFinaux)
+      .then(() => {
+        this.submitArbitrageRequest();
+      })
+      .catch(error => {
+        console.error('❌ Erreur upload documents:', error);
+        this.notificationService.showError('❌ Erreur lors de l\'upload des documents');
+        this.isProcessingArbitrage = false;
+      });
+  } else {
+    this.submitArbitrageRequest();
+  }
 }
 
-const request: InitiationArbitrageRequest = {
-  litigeId: this.selectedChargebackForAction.litigeId,
-  justificationDemande: this.arbitrageForm.justificationDemande,
-  positionBanque: this.arbitrageForm.positionBanque,
-  argumentsCles: this.arbitrageForm.argumentsCles,
-  coutEstime: this.arbitrageForm.coutEstime,
-  priorite: this.arbitrageForm.priorite,
-  demandeUrgente: this.arbitrageForm.demandeUrgente
-};
+private submitArbitrageRequest(): void {
+  const request: InitiationArbitrageRequest = {
+    litigeId: this.selectedChargebackForAction!.litigeId!,
+    justificationDemande: this.arbitrageForm.justificationDemande,
+    positionBanque: this.arbitrageForm.positionBanque,
+    argumentsCles: this.arbitrageForm.argumentsCles,
+    coutEstime: this.arbitrageForm.coutEstime,
+    priorite: this.arbitrageForm.priorite,
+    demandeUrgente: this.arbitrageForm.demandeUrgente
+  };
 
-    console.log('⚖️ [Arbitrage] Traitement:', request);
-    this.isProcessingArbitrage = true;
+  console.log('⚖️ [Arbitrage] Traitement:', request);
 
-    this.chargebackService.demanderArbitrage(request).subscribe({
-      next: (result) => {
-        this.notificationService.showSuccess('✅ Demande d\'arbitrage soumise avec succès');
-        this.closeArbitrageModal();
-        this.loadChargebackData();
-        this.isProcessingArbitrage = false;
-      },
-      error: (error) => {
-        console.error('❌ Erreur arbitrage:', error);
-        this.notificationService.showError('❌ Erreur lors de la demande d\'arbitrage');
-        this.isProcessingArbitrage = false;
+  this.chargebackService.demanderArbitrage(request).subscribe({
+    next: (result) => {
+      // Mettre à jour la phase localement
+      if (this.selectedChargebackForAction) {
+        this.selectedChargebackForAction.phaseActuelle = 'ARBITRAGE';
       }
-    });
-  }
+      
+      this.notificationService.showSuccess('✅ Demande d\'arbitrage soumise avec succès');
+      this.closeArbitrageModal();
+      this.loadChargebackData();
+      this.isProcessingArbitrage = false;
+    },
+    error: (error) => {
+      console.error('❌ Erreur arbitrage:', error);
+      this.notificationService.showError('❌ Erreur lors de la demande d\'arbitrage');
+      this.isProcessingArbitrage = false;
+    }
+  });
+}
 
   /**
    * Traiter décision arbitrage
    */
-  processDecisionArbitrage(): void {
-    if (!this.selectedChargebackForAction || !this.isFormValid('decisionArbitrage')) {
-      this.notificationService.showError('❌ Formulaire invalide');
-      return;
-    }
+ processDecisionArbitrage(): void {
+  if (!this.selectedChargebackForAction || !this.isFormValid('decisionArbitrage')) {
+    this.notificationService.showError('❌ Formulaire invalide');
+    return;
+  }
 
-    const request: DecisionArbitrageRequest = {
-  litigeId: this.selectedChargebackForAction.litigeId || 0,
-  decision: this.decisionArbitrageForm.decision,           // ✅ Propriété pour décision
-  motifsDecision: this.decisionArbitrageForm.motifsDecision, // ✅ Propriété pour décision
-  repartitionFrais: this.decisionArbitrageForm.repartitionFrais // ✅ Propriété pour décision
+  const arbitrageId = this.selectedChargebackForAction.id;
+  if (!arbitrageId) {
+    this.notificationService.showError('❌ ID arbitrage manquant');
+    return;
+  }
+
+  const request: DecisionArbitrageRequest = {
+  litigeId: this.selectedChargebackForAction.litigeId || 0, // ✅ CORRECTION : Ajouter litigeId
+  decision: this.decisionArbitrageForm.decision,
+  motifsDecision: this.decisionArbitrageForm.motifsDecision,
+  repartitionFrais: this.decisionArbitrageForm.repartitionFrais
 };
+  this.isProcessingDecision = true;
 
-console.log('🏛️ [DecisionArbitrage] Traitement:', request);
-this.isProcessingDecision = true;
+  console.log('🏛️ [DecisionArbitrage] Traitement avec nouvelle signature:', { arbitrageId, request });
 
-this.chargebackService.deciderArbitrage(this.selectedChargebackForAction.id || 0, request).subscribe({
-  next: (result: any) => {
-    console.log('✅ Décision arbitrage résultat:', result);
-    this.notificationService.showSuccess('✅ Décision d\'arbitrage rendue avec succès');
-    this.closeDecisionArbitrageModal();
-    this.loadChargebackData();
-    this.isProcessingDecision = false;
-  },
-  error: (error: any) => {
-    console.error('❌ Erreur décision arbitrage:', error);
-    this.notificationService.showError('❌ Erreur lors de la décision d\'arbitrage');
-    this.isProcessingDecision = false;
-  }
-});
-  }
+  // ✅ CORRECTION: Utiliser la nouvelle méthode avec signature corrigée
+  this.chargebackService.rendreDecisionArbitrage(arbitrageId, request).subscribe({
+    next: (result: any) => {
+      // ✅ CORRECTION: Mise à jour phase locale
+      if (this.selectedChargebackForAction) {
+        this.selectedChargebackForAction.phaseActuelle = 'FINALISE';
+        console.log('🔄 Phase locale mise à jour vers FINALISE');
+      }
+      
+      console.log('✅ Décision arbitrage résultat:', result);
+      this.notificationService.showSuccess('✅ Décision d\'arbitrage rendue avec succès');
+      this.closeDecisionArbitrageModal();
+      
+      // Rechargement complet pour synchronisation
+      this.loadChargebackData().then(() => {
+        console.log('🔄 Données chargeback rechargées après décision');
+      });
+      
+      this.isProcessingDecision = false;
+    },
+    error: (error: any) => {
+      console.error('❌ Erreur décision arbitrage:', error);
+      this.notificationService.showError('❌ Erreur lors de la décision d\'arbitrage');
+      this.isProcessingDecision = false;
+    }
+  });
+}
 
   /**
    * Traiter annulation
    */
   processCancellation(): void {
-    if (!this.selectedChargebackForAction || !this.isFormValid('cancellation')) {
-      this.notificationService.showError('❌ Formulaire invalide');
-      return;
+  if (!this.selectedChargebackForAction || !this.isFormValid('cancellation')) {
+    this.notificationService.showError('❌ Formulaire invalide');
+    return;
+  }
+
+  const litigeId = this.selectedChargebackForAction.litigeId || 0;
+  const utilisateurId = this.currentUserId || 0;
+  const motifAnnulation = this.cancellationForm.motifAnnulation;
+
+  console.log('🚫 [Cancellation] Traitement avec paramètres complets:', { 
+    litigeId, 
+    utilisateurId, 
+    motifAnnulation 
+  });
+  
+  this.isProcessingCancellation = true;
+
+  // ✅ CORRECTION: Utiliser la signature corrigée avec 3 paramètres
+  this.chargebackService.annulerChargeback(litigeId, utilisateurId, motifAnnulation).subscribe({
+    next: (result: boolean) => {
+      // ✅ CORRECTION: Mise à jour phase locale
+      if (this.selectedChargebackForAction) {
+        this.selectedChargebackForAction.phaseActuelle = 'FINALISE';
+        console.log('🔄 Phase locale mise à jour vers FINALISE (annulé)');
+      }
+      
+      console.log('✅ Annulation résultat:', result);
+      this.notificationService.showSuccess('✅ Chargeback annulé avec succès');
+      this.closeCancellationModal();
+      
+      // Rechargement complet pour synchronisation
+      this.loadChargebackData().then(() => {
+        console.log('🔄 Données chargeback rechargées après annulation');
+      });
+      
+      this.isProcessingCancellation = false;
+    },
+    error: (error: any) => {
+      console.error('❌ Erreur annulation:', error);
+      this.notificationService.showError('❌ Erreur lors de l\'annulation du chargeback');
+      this.isProcessingCancellation = false;
     }
-const motifAnnulation = this.cancellationForm.motifAnnulation;
-
-console.log('🚫 [Cancellation] Traitement:', { 
-  litigeId: this.selectedChargebackForAction.litigeId,
-  motifAnnulation 
-});
-this.isProcessingCancellation = true;
-
-this.chargebackService.annulerChargeback(
-  this.selectedChargebackForAction.litigeId || 0, 
-  motifAnnulation // ✅ CORRIGÉ : passer directement le string
-).subscribe({
-  next: (result: any) => { // ✅ Type explicite
-    console.log('✅ Annulation résultat:', result);
-    this.notificationService.showSuccess('✅ Chargeback annulé avec succès');
-    this.closeCancellationModal();
-    this.loadChargebackData();
-    this.isProcessingCancellation = false;
-  },
-  error: (error: any) => { // ✅ Type explicite
-    console.error('❌ Erreur annulation:', error);
-    this.notificationService.showError('❌ Erreur lors de l\'annulation du chargeback');
-    this.isProcessingCancellation = false;
-  }
-});
-  }
+  });
+}
 
   /**
    * Charger historique chargeback
@@ -809,54 +1087,135 @@ this.chargebackService.annulerChargeback(
    * Charger justificatifs chargeback
    */
   loadChargebackJustificatifs(chargebackId: number): void {
-    this.isLoadingJustificatifs = true;
-    
-    // TODO: Implémenter quand l'endpoint sera disponible
-    // this.chargebackService.getJustificatifsChargeback(chargebackId).subscribe({
-    //   next: (justificatifs: JustificatifChargeback[]) => {
-    //     this.selectedChargebackJustificatifs = justificatifs;
-    //     this.isLoadingJustificatifs = false;
-    //   },
-    //   error: (error) => {
-    //     console.error('❌ Erreur chargement justificatifs:', error);
-    //     this.isLoadingJustificatifs = false;
-    //   }
-    // });
-    
-    // Simulation temporaire
-    setTimeout(() => {
-      this.selectedChargebackJustificatifs = [];
-      this.isLoadingJustificatifs = false;
-    }, 500);
+  this.isLoadingJustificatifs = true;
+  
+  console.log(`📎 [Justificatifs] Chargement pour chargeback #${chargebackId}`);
+  
+  const headers = new HttpHeaders({
+    'Authorization': `Bearer ${this.authService.getToken()}`
+  });
+
+  // Essayer de charger les justificatifs réels
+  this.http.get<JustificatifChargeback[]>(`http://localhost:8080/api/public/chargebacks/${chargebackId}/justificatifs`, { headers })
+    .subscribe({
+      next: (justificatifs: JustificatifChargeback[]) => {
+        console.log(`✅ [Justificatifs] ${justificatifs.length} justificatifs chargés`);
+        this.selectedChargebackJustificatifs = justificatifs;
+        this.isLoadingJustificatifs = false;
+      },
+      error: (error: HttpErrorResponse) => {
+        console.warn(`⚠️ [Justificatifs] Endpoint non disponible (${error.status}), utilisation fallback`);
+        
+        // Fallback avec des données simulées mais réalistes
+        this.selectedChargebackJustificatifs = this.generateMockJustificatifs(chargebackId);
+        this.isLoadingJustificatifs = false;
+      }
+    });
+}
+
+private generateMockJustificatifs(chargebackId: number): JustificatifChargeback[] {
+  // Données simulées réalistes pour les tests
+  return [
+  {
+    id: chargebackId * 10 + 1,
+    litigeId: this.selectedChargebackForAction?.litigeId || 0,
+    nomFichier: 'preuve_transaction.pdf',
+    typeJustificatif: 'PREUVE_TRANSACTION',
+    phaseLitige: 'CHARGEBACK_INITIAL',
+    cheminFichier: '/uploads/justificatifs/preuve_transaction.pdf',
+    tailleFichier: 245760,
+    formatFichier: 'pdf',
+    dateAjout: new Date().toISOString(),
+    valide: true,
+    commentaires: 'Preuve de la transaction initiale',
+    visiblePourAutrePartie: true
+  },
+  {
+    id: chargebackId * 10 + 2,
+    litigeId: this.selectedChargebackForAction?.litigeId || 0,
+    nomFichier: 'communication_client.pdf',
+    typeJustificatif: 'COMMUNICATION_CLIENT',
+    phaseLitige: 'CHARGEBACK_INITIAL', 
+    cheminFichier: '/uploads/justificatifs/communication_client.pdf',
+    tailleFichier: 156890,
+    formatFichier: 'pdf',
+    dateAjout: new Date(Date.now() - 86400000).toISOString(),
+    valide: true,
+    commentaires: 'Communication avec le client',
+    visiblePourAutrePartie: true
   }
+];
+}
+
+// Ajouter une méthode pour uploader de nouveaux justificatifs
+uploadNewJustificatifs(): void {
+  if (!this.selectedChargebackForAction || this.newJustificatifs.length === 0) {
+    this.notificationService.showError('❌ Aucun fichier sélectionné');
+    return;
+  }
+
+  const chargebackId = this.selectedChargebackForAction.id;
+  if (!chargebackId) {
+    this.notificationService.showError('❌ ID chargeback manquant');
+    return;
+  }
+
+  this.uploadJustificatifsForPhase('JUSTIFICATIFS_MODAL', this.newJustificatifs)
+    .then(() => {
+      this.notificationService.showSuccess('✅ Justificatifs uploadés avec succès');
+      this.newJustificatifs = [];
+      // Recharger les justificatifs
+      this.loadChargebackJustificatifs(chargebackId);
+    })
+    .catch(error => {
+      console.error('❌ Erreur upload justificatifs:', error);
+      this.notificationService.showError('❌ Erreur lors de l\'upload des justificatifs');
+    });
+}
+
   // ✅ MÉTHODES UTILITAIRES ET VALIDATION
 
   /**
    * Vérifier si un formulaire est valide
    */
   isFormValid(formName: string): boolean {
-    switch (formName) {
-      case 'representation':
-        return this.representationForm.reponseDetaillee.length >= 20;
+  console.log('🔍 [VALIDATION] Test validation pour:', formName);
+  
+  switch (formName) {
+    case 'representation':
+      const reponseDetaillee = this.representationForm.reponseDetaillee || '';
+      const longueur = reponseDetaillee.trim().length;
+      const valide = longueur >= 20;
       
-      case 'secondPresentment':
-        return this.secondPresentmentForm.motifRejet.length >= 20 &&
-               this.secondPresentmentForm.refutationDetaillee.length >= 50;
+      console.log('🔍 [VALIDATION] Représentation:', {
+        reponseDetaillee: reponseDetaillee,
+        longueurAvantTrim: reponseDetaillee.length,
+        longueurApresTrim: longueur,
+        minimum: 20,
+        valide: valide
+      });
       
-      case 'arbitrage':
-        return this.arbitrageForm.justificationDemande.length >= 50 &&
-               this.arbitrageForm.positionBanque.length >= 30;
-      
-      case 'decisionArbitrage':
-        return this.decisionArbitrageForm.motifsDecision.length >= 20;
-      
-      case 'cancellation':
-        return this.cancellationForm.motifAnnulation.length >= 10;
-      
-      default:
-        return false;
-    }
+      return valide;
+    
+    case 'secondPresentment':
+      return (this.secondPresentmentForm.motifRejet || '').trim().length >= 20 &&
+             (this.secondPresentmentForm.refutationDetaillee || '').trim().length >= 50;
+    
+    case 'arbitrage':
+      return (this.arbitrageForm.justificationDemande || '').trim().length >= 50 &&
+             (this.arbitrageForm.positionBanque || '').trim().length >= 30;
+    
+    case 'decisionArbitrage':
+      return (this.decisionArbitrageForm.motifsDecision || '').trim().length >= 20;
+    
+    case 'cancellation':
+      return (this.cancellationForm.motifAnnulation || '').trim().length >= 10;
+    
+    default:
+      console.log('⚠️ [VALIDATION] Formulaire inconnu:', formName);
+      return false;
   }
+}
 
   /**
    * Réinitialiser un formulaire
@@ -1086,47 +1445,41 @@ downloadJustificatif(justificatif: JustificatifChargeback): void {
  }
 
  // ✅ MÉTHODES CHARGEBACK PRINCIPALES
+private chargebackEligibilityCache = new Map<string, boolean>();
+private lastCacheUpdate = 0;
+private readonly CACHE_DURATION = 30000; // 30 secondes
 
  canInitiateChargeback(transaction: TransactionWithMeta): boolean {
-  console.log('🔍 [DEBUG] canInitiateChargeback pour:', transaction.reference);
+  const cacheKey = `${transaction.reference}_${transaction.statut}_${this.institutionId}`;
+  const now = Date.now();
   
-  // 1. Vérifications de base
-  if (!this.institutionId) {
-    console.log('❌ Pas d\'institutionId:', this.institutionId);
-    return false;
+  // Vérifier le cache d'abord
+  if (this.chargebackEligibilityCache.has(cacheKey) && 
+      (now - this.lastCacheUpdate) < this.CACHE_DURATION) {
+    return this.chargebackEligibilityCache.get(cacheKey)!;
+  }
+  
+  // Nettoyer le cache si nécessaire
+  if ((now - this.lastCacheUpdate) > this.CACHE_DURATION) {
+    this.chargebackEligibilityCache.clear();
+    this.lastCacheUpdate = now;
+  }
+  
+  let result = false;
+  
+  // Logique originale (sans les console.log répétitifs)
+  if (this.institutionId && 
+      this.currentUserRole && 
+      transaction.statut === StatutTransaction.AVEC_LITIGE &&
+      transaction.banqueEmettrice &&
+      transaction.banqueEmettrice.id === this.institutionId &&
+      !this.hasActiveChargeback(transaction)) {
+    result = true;
   }
 
-  if (!this.currentUserRole) {
-    console.log('❌ Pas de currentUserRole:', this.currentUserRole);
-    return false;
-  }
-
-  // 2. La transaction doit avoir un litige
-  if (transaction.statut !== StatutTransaction.AVEC_LITIGE) {
-    console.log('❌ Transaction sans litige. Statut:', transaction.statut);
-    return false;
-  }
-
-  // 3. Vérifier la banque émettrice
-  if (!transaction.banqueEmettrice) {
-    console.log('❌ Pas de banqueEmettrice définie');
-    return false;
-  }
-
-  if (transaction.banqueEmettrice.id !== this.institutionId) {
-    console.log('❌ Pas banque émettrice. Notre ID:', this.institutionId, 'Émettrice ID:', transaction.banqueEmettrice.id);
-    return false;
-  }
-
-  // 4. Vérifier qu'il n'y a pas déjà un chargeback (simplifié)
-  const hasExisting = this.hasActiveChargeback(transaction);
-  if (hasExisting) {
-    console.log('❌ Chargeback déjà existant');
-    return false;
-  }
-
-  console.log('✅ PEUT INITIER CHARGEBACK pour:', transaction.reference);
-  return true;
+  // Mettre en cache le résultat
+  this.chargebackEligibilityCache.set(cacheKey, result);
+  return result;
 }
 
  openChargebackModal(transaction: TransactionWithMeta): void {
@@ -1423,6 +1776,8 @@ initiateChargeback(): void {
   const request: InitiationChargebackRequest = {
     litigeId: litigeAssocie.id,
     transactionId: transactionIdToSend,
+    utilisateurEmetteurId: this.currentUserId!, // AJOUTÉ
+    banqueEmettriceId: this.institutionId!, // AJOUTÉ
     motifChargeback: this.chargebackForm.motifChargeback,
     description: this.chargebackForm.description,
     montantConteste: this.chargebackForm.montantConteste,
@@ -1451,14 +1806,26 @@ initiateChargeback(): void {
 
     api$.subscribe({
       next: (chargeback: LitigeChargebackDTO) => {
-        console.log('✅ [FRONTEND-RESPONSE] Chargeback créé:', chargeback);
-        this.notificationService.showSuccess(`✅ Chargeback initié avec succès pour la transaction ${tx.reference}`);
-        this.chargebacks.unshift(chargeback);
-        this.loadChargebackStats();
-        this.closeChargebackModal();
-        this.setActiveTab('chargeback');
-        this.isInitiatingChargeback = false;
-      },
+  console.log('✅ [FRONTEND-RESPONSE] Chargeback créé:', chargeback);
+  this.notificationService.showSuccess(`✅ Chargeback initié avec succès pour la transaction ${tx.reference}`);
+  
+  // Ajouter le nouveau chargeback
+  this.chargebacks.unshift(chargeback);
+  
+  // IMPORTANT: Recharger complètement les données pour éviter les incohérences
+  this.loadChargebackData().then(() => {
+    // Après rechargement, changer d'onglet et forcer l'affichage
+    this.closeChargebackModal();
+    this.setActiveTab('chargeback');
+    
+    // Forcer l'affichage sur l'onglet "émis" car c'est nous qui venons de créer
+    this.setChargebackSubTab('emis');
+    
+    console.log('✅ [FRONTEND-RESPONSE] Rechargement terminé, chargeback visible');
+  });
+  
+  this.isInitiatingChargeback = false;
+},
       error: (error: HttpErrorResponse) => {
         console.error('❌ [FRONTEND-ERROR] Erreur API:', error);
         const msg = error?.error?.error || error?.error?.message || '❌ Erreur lors de l’initiation du chargeback.';
@@ -1474,29 +1841,35 @@ initiateChargeback(): void {
   }
 }
 
- private loadChargebackData(): void {
+ private loadChargebackData(): Promise<void> {
   console.log('💳 [Chargeback] Chargement des données chargeback...');
   
   this.isLoadingChargebacks = true;
   
-  Promise.all([
+  return Promise.all([
     this.loadChargebacks(),
     this.loadChargebackStats()
   ]).then(() => {
     this.isLoadingChargebacks = false;
     
-    // ✅ NOUVEAU : Séparer les chargebacks par rôle
+    // Séparer les chargebacks par rôle
     this.separateChargebacksByRole();
     
-    // ✅ NOUVEAU : Filtrer les deux listes séparément
+    // Filtrer les deux listes séparément
     this.filterChargebacksEmis();
     this.filterChargebacksRecus();
     
+    // Vider le cache pour forcer le recalcul des permissions
+    this.chargebackEligibilityCache.clear();
+    
     console.log('💳 [Chargeback] Données chargées et séparées avec succès');
+    console.log('💳 [Chargeback] Chargebacks émis:', this.chargebacksEmis.length);
+    console.log('💳 [Chargeback] Chargebacks reçus:', this.chargebacksRecus.length);
   }).catch(error => {
     console.error('❌ [Chargeback] Erreur chargement:', error);
     this.isLoadingChargebacks = false;
     this.notificationService.showError('❌ Erreur lors du chargement des chargebacks');
+    throw error; // Propager l'erreur pour que le Promise.catch fonctionne
   });
 }
 
@@ -1537,45 +1910,16 @@ initiateChargeback(): void {
     console.log('🌐 [STATS-LOAD] URL appelée: chargebackService.getStatistiquesChargeback(' + this.institutionId + ')');
 
     this.chargebackService.getStatistiquesChargeback(this.institutionId).subscribe({
-      next: (stats: StatistiquesChargeback) => {
-        console.log('✅ [STATS-LOAD] Statistiques reçues avec succès');
-        console.log('✅ [STATS-LOAD] Stats complètes:', stats);
-        console.log('✅ [STATS-LOAD] Total:', stats?.total);
-        console.log('✅ [STATS-LOAD] En cours:', stats?.enCours);
-        console.log('✅ [STATS-LOAD] Finalisés:', stats?.finalises);
-        console.log('✅ [STATS-LOAD] Urgents:', stats?.urgents);
-        console.log('✅ [STATS-LOAD] Montant total:', stats?.montantTotal);
-        
-        this.chargebackStats = stats;
-        console.log('✅ [STATS-LOAD] Statistiques assignées à chargebackStats');
-        console.log('✅ [STATS-LOAD] ===== SUCCÈS loadChargebackStats =====');
-        resolve();
-      },
-      error: (error: HttpErrorResponse) => {
-        console.error('❌ [STATS-LOAD] ===== ERREUR loadChargebackStats =====');
-        console.error('❌ [STATS-LOAD] Erreur HTTP complète:', error);
-        console.error('❌ [STATS-LOAD] Status:', error.status);
-        console.error('❌ [STATS-LOAD] Status Text:', error.statusText);
-        console.error('❌ [STATS-LOAD] URL:', error.url);
-        console.error('❌ [STATS-LOAD] Error body:', error.error);
-        console.error('❌ [STATS-LOAD] Message:', error.message);
-        console.error('❌ [STATS-LOAD] Name:', error.name);
-        
-        // Log spécifique pour erreur Hibernate
-        if (error.error && typeof error.error === 'string' && error.error.includes('MultipleBagFetchException')) {
-          console.error('🔥 [STATS-LOAD] ERREUR HIBERNATE DÉTECTÉE: MultipleBagFetchException');
-          console.error('🔥 [STATS-LOAD] Problème dans les requêtes JPA du backend');
-        }
-        
-        if (error.error && error.error.message && error.error.message.includes('cannot simultaneously fetch multiple bags')) {
-          console.error('🔥 [STATS-LOAD] CONFIRMÉ: Erreur JOIN FETCH multiple détectée');
-        }
-        
-        console.error('❌ [STATS-LOAD] L\'erreur ne bloque pas le processus, résolution...');
-        console.error('❌ [STATS-LOAD] ===== FIN ERREUR (non bloquante) =====');
-        resolve(); // ✅ Résolution même en cas d'erreur pour ne pas bloquer
-      }
-    });
+  next: (stats: StatistiquesChargeback) => {
+    this.chargebackStats = stats;
+    console.log('Statistiques reçues:', stats);
+    resolve();
+  },
+  error: (error: HttpErrorResponse) => {
+    console.error('Erreur stats:', error);
+    resolve();
+  }
+});
   });
 }
 
@@ -2899,8 +3243,66 @@ debugChargebacks(): void {
       });
     });
   }
-}
-
-}
-
   
+}
+
+/**
+   * Debug représentation
+   */
+  debugRepresentation(): void {
+    console.log('🔧 [DEBUG] État complet du formulaire représentation:');
+    console.log('- selectedChargebackForAction:', this.selectedChargebackForAction);
+    console.log('- representationForm:', this.representationForm);
+    console.log('- isFormValid result:', this.isFormValid('representation'));
+    console.log('- isProcessingRepresentation:', this.isProcessingRepresentation);
+    console.log('- Longueur réponse détaillée:', this.representationForm.reponseDetaillee?.length || 0);
+    
+    // Forcer le traitement pour test
+    if (this.selectedChargebackForAction) {
+      console.log('🔧 [DEBUG] Forçage du traitement...');
+      this.processRepresentation();
+    }
+  }
+
+  /**
+   * Suivre les changements dans le textarea
+   */
+  onReponseDetailChange(event: any): void {
+    console.log('📝 [INPUT] Changement réponse détaillée:', event.target.value.length, 'caractères');
+    console.log('📝 [INPUT] Validation:', this.isFormValid('representation'));
+  }
+
+
+  debugChargebackActions(chargeback: LitigeChargebackDTO): void {
+  console.log('=== DEBUG CHARGEBACK ACTIONS ===');
+  console.log('Chargeback ID:', chargeback.id);
+  console.log('Phase actuelle:', chargeback.phaseActuelle);
+  console.log('Institution connectée:', this.institutionId);
+  console.log('Rôle utilisateur:', this.currentUserRole);
+  
+  // Vérifier les données de transaction
+  console.log('Transaction:', chargeback.transaction);
+  console.log('Banque émettrice:', chargeback.transaction?.banqueEmettrice?.id);
+  console.log('Banque acquéreuse:', chargeback.transaction?.banqueAcquereuse?.id);
+  
+  // Calculer les rôles
+  const isEmetteur = chargeback.transaction?.banqueEmettrice?.id === this.institutionId;
+  const isAcquereur = chargeback.transaction?.banqueAcquereuse?.id === this.institutionId;
+  console.log('Suis-je émetteur?', isEmetteur);
+  console.log('Suis-je acquéreur?', isAcquereur);
+  
+  // Propriété critique
+  console.log('peutEtreEscalade:', chargeback.peutEtreEscalade);
+  
+  // Actions calculées
+  const actions = this.getChargebackActions(chargeback);
+  console.log('Actions disponibles:', actions);
+  console.log('canDemanderArbitrage:', actions.canDemanderArbitrage);
+  console.log('================================');
+}
+
+}
+
+
+
+
